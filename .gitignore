@@ -1,0 +1,56 @@
+# ---- 依赖 ----
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pnpm-store/
+
+# ---- 构建产物 ----
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# ---- 环境变量（保留模板）----
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ---- 运行时数据 ----
+backend/data/runs/
+backend/data/checkpoints/
+backend/data/profiles.json
+*.log
+logs/
+_tsc-*.txt
+.tsc-files.txt
+.tsc-out.txt
+_probe_*.txt
+
+# 误 pip/apt 落下的空壳文件（如 `=0.7.0`）
+=*
+
+# 根目录/npm 锁：本项目统一用 pnpm
+/package-lock.json
+frontend/package-lock.json
+
+# ---- 编辑器 / 系统 ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ---- 测试 ----
+coverage/
+.pytest_cache/
+.ruff_cache/
+
+# ---- Agent 协作目录（不进版本库）----
+# 存放 AI 助手的内部工作文档：审计发现、纠正性备忘、临时分析、会话记录。
+# 面向用户/团队的项目文档请放 docs/。
+.agent/
+
+backend/data/benchmarks/

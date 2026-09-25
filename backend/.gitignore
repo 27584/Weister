@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+*.log
+data/checkpoints/
+data/runs/
+data/profiles.json
+.pytest_cache/
+.ruff_cache/
+=*

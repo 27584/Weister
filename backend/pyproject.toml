@@ -1,0 +1,57 @@
+[project]
+name = "weister-backend"
+version = "0.3.1"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "langgraph>=0.2.60",
+    "langchain-core>=0.3.25",
+    "httpx>=0.27.2",
+    "python-dotenv>=1.0.1",
+    "pymupdf>=1.24.0",
+    "mcp>=1.0.0",
+    "tiktoken>=0.7.0",
+]
+
+[project.optional-dependencies]
+# 内置 OCR：扫描件 PDF 文字识别（无需系统 Tesseract）
+ocr = [
+    "rapidocr-onnxruntime>=1.3.0",
+]
+# Office 文档解析
+office = [
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+
+[tool.ruff.lint]
+# S102：python_calc 的 AST 白名单沙箱需要 exec/eval
+# TRY004：工具层用 ValueError 表达「用户输入不合法」，不是类型系统错误
+ignore = ["S102", "TRY004"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI 依赖注入与流式边界：Depends/File 默认值 + 兜底 Exception 是框架惯例
+"app/api.py" = ["B008", "BLE001", "S112"]
+"app/api/**" = ["B008", "BLE001", "S112"]
+# 运维/基准脚本：路径注入 + 宽容探测
+"scripts/**" = ["E402", "BLE001", "S112"]

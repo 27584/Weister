@@ -1,0 +1,235 @@
+@import "tailwindcss";
+@import "animate.css/animate.css";
+
+/* daisyUI 组件库 —— 界面结构一律走它的组件类，不再手搓。
+   内置主题全部关闭，只保留本项目自定义的一套。 */
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* 浅色专业主题。
+   --depth: 0 与 --noise: 0 是刻意的：去掉 daisyUI 默认的立体阴影与噪点，
+   配合小圆角，得到的是"文档工具"而不是"概念图"的观感。 */
+@plugin "daisyui/theme" {
+  name: "weister";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f5f6f8;
+  --color-base-300: #e3e6ec;
+  --color-base-content: #1a1f2b;
+
+  --color-primary: #1c4b7d;
+  --color-primary-content: #ffffff;
+  --color-secondary: #0f766e;
+  --color-secondary-content: #ffffff;
+  --color-accent: #155e75;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2b3440;
+  --color-neutral-content: #ffffff;
+
+  --color-info: #1c4b7d;
+  --color-info-content: #ffffff;
+  --color-success: #15803d;
+  --color-success-content: #ffffff;
+  --color-warning: #a15c07;
+  --color-warning-content: #ffffff;
+  --color-error: #b91c1c;
+  --color-error-content: #ffffff;
+
+  /* 小圆角：0.5rem 以上就开始有"气泡感" */
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.375rem;
+
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* 供少量原生 CSS 复用（报告正文排版 / 滚动条），值与上面的主题变量保持一致。
+   三档墨色全部满足 WCAG AA（白底 ≥4.5:1）：
+     ink   1a1f2b  15.9:1  正文
+     ink-2 4a5566   7.5:1  次要文字
+     ink-3 5b6474   5.6:1  辅助/装饰（原 7a8496 仅 3.4:1，看不清） */
+:root {
+  --ink: #1a1f2b;
+  --ink-2: #4a5566;
+  --ink-3: #5b6474;
+  --rule: #e3e6ec;
+  --paper: #ffffff;
+  --canvas: #f5f6f8;
+  --brand: #1c4b7d;
+  --ok: #15803d;
+  --warn: #a15c07;
+  --err: #b91c1c;
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  /* Geist 只覆盖拉丁字符，中文必须显式给字体栈，
+     否则会掉到浏览器默认宋体，一眼就不像正经产品 */
+  font-family: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui,
+    sans-serif;
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+  /* 默认字号提一档，字重 450 —— Geist 与中文渲染都偏细，400 难辨 */
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 450;
+}
+
+/* 把 tailwind .text-xs 提到 14px / 500 / 1.5。
+   之前是 13px —— 中文在笔记本屏上偏小，配合低对比度灰字会明显发糊。
+   全站最小字号统一为 14px；更小的字号一律不用。 */
+.text-xs {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+code,
+pre,
+kbd,
+samp,
+.font-mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    Consolas, "Liberation Mono", monospace;
+}
+
+/* placeholder 是「看不清」的重灾区：daisyUI / 浏览器默认给的颜色接近 #a0a0a0，
+   在白底上只有约 2.6:1，几乎隐形。统一用 --ink-2（#4a5566，7.5:1）并
+   显式 opacity:1 盖掉浏览器默认的降透明；textarea-ghost 等组件的优先级
+   通过 ::placeholder 伪元素权重覆盖。 */
+::placeholder {
+  color: var(--ink-2) !important;
+  opacity: 1 !important;
+}
+
+/* 数字一律等宽对齐 —— 金融界面里表格数字错位是硬伤 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cfd5df;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #aab3c1;
+  background-clip: content-box;
+}
+
+/* ---------- 报告正文排版 ---------- */
+
+.prose-report {
+  color: var(--ink);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+.prose-report h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  letter-spacing: -0.01em;
+}
+.prose-report h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--brand);
+}
+.prose-report h3 {
+  /* 0.9rem=14.4px 偏小，提到 15px 与正文同级但靠字重区分层级 */
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 1.1rem 0 0.4rem;
+}
+.prose-report p {
+  margin: 0.5rem 0;
+}
+.prose-report ul,
+.prose-report ol {
+  margin: 0.5rem 0 0.5rem 1.35rem;
+}
+.prose-report ul {
+  list-style: disc;
+}
+.prose-report ol {
+  list-style: decimal;
+}
+.prose-report li {
+  margin: 0.25rem 0;
+}
+.prose-report li::marker {
+  color: var(--ink-3);
+}
+.prose-report table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  /* 表格是金融界面的核心内容，13px 太小 → 提到 14px */
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.prose-report th,
+.prose-report td {
+  border: 1px solid var(--rule);
+  padding: 0.45rem 0.6875rem;
+  text-align: left;
+}
+.prose-report th {
+  background: var(--canvas);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.prose-report code {
+  background: #eef1f5;
+  border: 1px solid var(--rule);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.prose-report blockquote {
+  border-left: 3px solid var(--rule);
+  padding-left: 0.85rem;
+  color: var(--ink-2);
+  margin: 0.75rem 0;
+}
+.prose-report strong {
+  font-weight: 600;
+}
+.prose-report a {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 流式输出光标：一个实心竖条，不要闪烁动画 */
+.stream-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--brand);
+  vertical-align: -0.15em;
+  margin-left: 2px;
+}
