@@ -1,0 +1,59 @@
+{
+  "name": "weister-desktop",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Weister 金融投研智能体桌面客户端",
+  "main": "main.mjs",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron": "^33.2.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.0"
+  },
+  "build": {
+    "appId": "com.weister.app",
+    "productName": "Weister",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.mjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/backend",
+        "to": "backend"
+      },
+      {
+        "from": "../frontend/.next/standalone",
+        "to": "frontend"
+      },
+      {
+        "from": "../frontend/.next/static",
+        "to": "frontend/.next/static"
+      },
+      {
+        "from": "../frontend/public",
+        "to": "frontend/public",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Weister"
+    }
+  }
+}
