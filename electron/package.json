@@ -9,10 +9,9 @@
     "build": "electron-builder",
     "build:win": "electron-builder --win"
   },
-  "dependencies": {
-    "electron": "^33.2.0"
-  },
+  "author": "Weister",
   "devDependencies": {
+    "electron": "^33.2.0",
     "electron-builder": "^25.1.0"
   },
   "build": {
@@ -54,7 +53,9 @@
       {
         "from": "../frontend/public",
         "to": "frontend/public",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
