@@ -23,7 +23,9 @@
     "files": [
       "main.mjs",
       "preload.cjs",
-      "loading.html"
+      "loading.html",
+      "build/icon.ico",
+      "build/icon.png"
     ],
     "extraResources": [
       {

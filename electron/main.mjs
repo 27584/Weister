@@ -244,6 +244,7 @@ function createLoadingWindow() {
     show: true,
     backgroundColor: "#ffffff",
     title: "Weister",
+    icon: join(__dirname, "build", "icon.ico"),
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
       contextIsolation: true,
