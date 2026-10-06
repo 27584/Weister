@@ -52,6 +52,7 @@ export function ChatComposer({
 }: Props) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const [previews, setPreviews] = useState<
     { url: string; name: string; mime: string; text?: string }[]
   >([]);
@@ -353,7 +354,36 @@ export function ChatComposer({
   const modelBtnDisabled = !profile || running;
 
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-box)] border border-base-300 bg-base-100 p-2.5">
+    <div
+      className={`relative flex flex-col gap-2 rounded-[var(--radius-box)] border bg-base-100 p-2.5 transition-colors ${
+        dragOver ? "border-primary border-dashed bg-primary/[0.04]" : "border-base-300"
+      }`}
+      onDragOver={(e) => {
+        if (disabled) return;
+        if (Array.from(e.dataTransfer.types).includes("Files")) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        // 仅当离开整个容器时才取消高亮
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        if (disabled) return;
+        const list = e.dataTransfer.files;
+        if (list && list.length) {
+          e.preventDefault();
+          addFiles(Array.from(list));
+        }
+        setDragOver(false);
+      }}
+    >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[var(--radius-box)] bg-primary/[0.04] text-[13px] font-medium text-primary">
+          松开以添加附件
+        </div>
+      )}
       {previews.length > 0 && (
         <div className="flex flex-wrap gap-2 border-b border-base-300 pb-2">
           {previews.map((p, i) => (

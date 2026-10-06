@@ -118,22 +118,32 @@ samp,
   font-variant-numeric: tabular-nums;
 }
 
-::-webkit-scrollbar {
+/* ---------- 统一滚动条（自定义 UI，与整体黑白调一致） ----------
+   用 * 选择器 + !important 保证不被 Tailwind preflight 或组件内联样式覆盖。
+   同时声明 scrollbar-width/color（Firefox 与新版 Chromium 的标准属性）。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cfd5df transparent;
+}
+*::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background: #cfd5df;
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 6px;
 }
-::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background: #aab3c1;
   background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ---------- 报告正文排版 ---------- */

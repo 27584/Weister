@@ -6,6 +6,7 @@
   "main": "main.mjs",
   "scripts": {
     "dev": "electron .",
+    "prebuild": "node scripts/prepare-frontend.cjs",
     "build": "electron-builder",
     "build:win": "electron-builder --win"
   },
@@ -48,17 +49,6 @@
       {
         "from": "../frontend/.next/standalone",
         "to": "frontend"
-      },
-      {
-        "from": "../frontend/.next/static",
-        "to": "frontend/.next/static"
-      },
-      {
-        "from": "../frontend/public",
-        "to": "frontend/public",
-        "filter": [
-          "**/*"
-        ]
       }
     ],
     "win": {

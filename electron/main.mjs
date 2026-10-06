@@ -301,6 +301,38 @@ function waitForHttp(url, maxAttempts = 40, intervalMs = 500) {
   });
 }
 
+/**
+ * 统一的标题栏窗口控制 IPC 注册。
+ *
+ * 必须在 app.whenReady 时注册（而不是在 createWindow 内），
+ * 否则加载窗口阶段的关闭/最小化按钮点击无人响应（handler 尚未注册）。
+ * 操作目标是「当前活跃窗口」——优先 mainWindow，否则 loadingWindow。
+ */
+function registerWindowIpc() {
+  const active = () => mainWindow || loadingWindow || BrowserWindow.getFocusedWindow();
+
+  ipcMain.on("wt:minimize", () => {
+    const w = active();
+    if (w && !w.isDestroyed()) w.minimize();
+  });
+
+  ipcMain.on("wt:maximize", () => {
+    const w = active();
+    if (!w || w.isDestroyed()) return;
+    if (w.isMaximized()) w.unmaximize();
+    else w.maximize();
+  });
+
+  ipcMain.on("wt:close", () => {
+    // 加载阶段关窗 → 直接退出整个应用；主界面阶段 → 关闭主窗口
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      app.quit();
+      return;
+    }
+    if (!mainWindow.isDestroyed()) mainWindow.close();
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -318,14 +350,7 @@ function createWindow() {
     },
   });
 
-  // 自定义标题栏按钮的 IPC 处理
-  ipcMain.on("wt:minimize", () => mainWindow && mainWindow.minimize());
-  ipcMain.on("wt:maximize", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMaximized()) mainWindow.unmaximize();
-    else mainWindow.maximize();
-  });
-  ipcMain.on("wt:close", () => mainWindow && mainWindow.close());
+  // 自定义标题栏按钮的 IPC 处理在 app 启动时统一注册（见 registerWindowIpc）
 
   // 同步最大化状态给渲染进程（切换按钮图标）
   mainWindow.on("maximize", () => mainWindow?.webContents.send("wt:maximized", true));
@@ -371,6 +396,9 @@ app.whenReady().then(async () => {
   console.log("[main] Weister desktop starting...");
   console.log(`[main] userData: ${app.getPath("userData")}`);
   console.log(`[main] isDev: ${isDev}`);
+
+  // 标题栏窗口控制（加载窗口阶段就要可用，不能等到 createWindow）
+  registerWindowIpc();
 
   // 立即显示加载窗口，不要让用户对着空白/无响应等待
   createLoadingWindow();

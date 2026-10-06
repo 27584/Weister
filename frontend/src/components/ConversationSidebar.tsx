@@ -1,6 +1,7 @@
 "use client";
 
 import { MessageSquarePlus, Trash2, Bot } from "lucide-react";
+import { confirmDialog } from "./ConfirmDialog";
 import type { ConversationSummary } from "@/lib/api";
 
 interface Props {
@@ -66,13 +67,15 @@ export function ConversationSidebar({
                   </span>
                 </span>
                 <span
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    if (
-                      window.confirm(
-                        `删除对话「${c.title}」？\n聊天记录与协作面板数据都会被删除，不可恢复。`,
-                      )
-                    ) {
+                    const ok = await confirmDialog({
+                      title: `删除对话「${c.title}」？`,
+                      message: "聊天记录与协作面板数据都会被删除，不可恢复。",
+                      confirmText: "删除",
+                      danger: true,
+                    });
+                    if (ok) {
                       onDelete(c.run_id);
                     }
                   }}

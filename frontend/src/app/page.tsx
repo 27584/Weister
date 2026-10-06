@@ -42,6 +42,7 @@ import { ChatComposer } from "@/components/ChatComposer";
 import { AgentStage } from "@/components/AgentStage";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { SettingsModal } from "@/components/SettingsModal";
+import { ConfirmHost } from "@/components/ConfirmDialog";
 
 type AppMode = "chat" | "pipeline";
 
@@ -59,6 +60,7 @@ export default function Home() {
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
   const [appMode, setAppMode] = useState<AppMode>("chat");
   const [pipeFile, setPipeFile] = useState<File | null>(null);
+  const [pipeDragOver, setPipeDragOver] = useState(false);
   const pipeFileRef = useRef<HTMLInputElement>(null);
 
   const timeline = useAgentTimeline();
@@ -397,6 +399,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-base-200">
+      <ConfirmHost />
       {/* ---------- 顶栏 ---------- */}
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-base-300 bg-base-100 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -419,9 +422,6 @@ export default function Home() {
             <h1 className="truncate text-[14px] font-semibold tracking-tight text-base-content">
               Weister
             </h1>
-            <p className="truncate text-[14px] text-base-content/90">
-              多智能体投研 · 自由对话与协作
-            </p>
           </div>
         </div>
 
@@ -553,7 +553,35 @@ export default function Home() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-2.5">
           {appMode === "pipeline" ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-box)] border border-base-300 bg-base-100">
+            <div
+              className={`relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-box)] border bg-base-100 transition-colors ${
+                pipeDragOver ? "border-primary border-dashed bg-primary/[0.04]" : "border-base-300"
+              }`}
+              onDragOver={(e) => {
+                if (analyzeRun.running) return;
+                if (Array.from(e.dataTransfer.types).includes("Files")) {
+                  e.preventDefault();
+                  setPipeDragOver(true);
+                }
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setPipeDragOver(false);
+              }}
+              onDrop={(e) => {
+                if (analyzeRun.running) return;
+                const f = e.dataTransfer.files?.[0];
+                if (f) {
+                  e.preventDefault();
+                  setPipeFile(f);
+                }
+                setPipeDragOver(false);
+              }}
+            >
+              {pipeDragOver && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-primary/[0.04] text-[13px] font-medium text-primary">
+                  松开以上传财报文件（PDF / TXT / MD）
+                </div>
+              )}
               <PipelineProgress nodes={analyzeRun.nodes} running={analyzeRun.running} />
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-base-300 px-3 py-2">
                 <input
