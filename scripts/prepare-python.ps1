@@ -1,22 +1,13 @@
 <#
 .SYNOPSIS
-    Weister · 准备嵌入式 Python 环境
+    Weister - Prepare embedded Python environment
 
 .DESCRIPTION
-    下载官方 Python embeddable package，配置 pip，安装后端全部依赖。
-    产物在 backend/python/ 目录下，包含 python.exe + site-packages。
-
-    Electron 桌面客户端直接用这个 python.exe 拉起 uvicorn。
+    Downloads official Python embeddable package, bootstraps pip,
+    installs all backend dependencies into backend/python/.
 
 .PARAMETER PythonVersion
-    Python 版本，默认 3.12.9（与 pyproject.toml 的 requires-python >=3.12 对齐）
-
-.EXAMPLE
-    .\scripts\prepare-python.ps1
-    下载并安装嵌入式 Python 环境。
-
-.NOTES
-    编码要求：UTF-8 with BOM（与 dev.ps1 一致）
+    Python version, default 3.12.9
 #>
 
 param(
@@ -24,7 +15,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$root = $PSScriptRoot | Split-Path | Split-Path
+$root = Split-Path $PSScriptRoot -Parent
 $backendDir = Join-Path $root "backend"
 $pythonDir = Join-Path $backendDir "python"
 
@@ -33,28 +24,27 @@ function Write-Step($message) {
 }
 
 function Write-Ok($message) {
-    Write-Host "  ✓ $message" -ForegroundColor Green
+    Write-Host "  OK $message" -ForegroundColor Green
 }
 
 function Write-Err($message) {
-    Write-Host "  ✗ $message" -ForegroundColor Red
+    Write-Host "  FAIL $message" -ForegroundColor Red
 }
 
-# ---- 检查是否已存在 ----
+# ---- Check if already exists ----
 
 $pythonExe = Join-Path $pythonDir "python.exe"
 if (Test-Path $pythonExe) {
     $version = & $pythonExe --version 2>&1
-    Write-Step "嵌入式 Python 已存在：$version"
-    Write-Host "  如需重新安装，请先删除 backend/python/ 目录"
+    Write-Step "Embedded Python already exists: $version"
+    Write-Host "  Delete backend/python/ to reinstall"
     exit 0
 }
 
-# ---- 下载 Python embeddable ----
+# ---- Download Python embeddable ----
 
-Write-Step "下载 Python $PythonVersion embeddable package ..."
+Write-Step "Downloading Python $PythonVersion embeddable package ..."
 
-# Windows amd64
 $url = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
 $zipPath = Join-Path $env:TEMP "python-$PythonVersion-embed-amd64.zip"
 
@@ -62,17 +52,15 @@ Write-Host "  URL: $url"
 
 try {
     Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
-    Write-Ok "下载完成"
+    Write-Ok "Download complete"
 } catch {
-    Write-Err "下载失败：$_"
-    Write-Host "  手动下载：$url"
-    Write-Host "  放到 backend/python/ 下解压"
+    Write-Err "Download failed: $_"
     exit 1
 }
 
-# ---- 解压 ----
+# ---- Extract ----
 
-Write-Step "解压到 backend/python/ ..."
+Write-Step "Extracting to backend/python/ ..."
 
 if (Test-Path $pythonDir) {
     Remove-Item $pythonDir -Recurse -Force
@@ -84,17 +72,16 @@ Remove-Item $zipPath -Force
 
 if (Test-Path $pythonExe) {
     $version = & $pythonExe --version 2>&1
-    Write-Ok "Python 安装成功：$version"
+    Write-Ok "Python installed: $version"
 } else {
-    Write-Err "解压后未找到 python.exe"
+    Write-Err "python.exe not found after extraction"
     exit 1
 }
 
-# ---- 启用 pip ----
+# ---- Enable pip ----
 
-Write-Step "配置 pip ..."
+Write-Step "Setting up pip ..."
 
-# 嵌入式 Python 默认不含 pip，需要手动 bootstrap
 $getPipUrl = "https://bootstrap.pypa.io/get-pip.py"
 $getPipPath = Join-Path $pythonDir "get-pip.py"
 
@@ -102,12 +89,12 @@ Invoke-WebRequest -Uri $getPipUrl -OutFile $getPipPath -UseBasicParsing
 
 & $pythonExe $getPipPath --no-warn-script-location 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) {
-    Write-Err "pip 安装失败"
+    Write-Err "pip installation failed"
     exit 1
 }
 Remove-Item $getPipPath -Force
 
-# 启用 site-packages：取消 python312._pth 中 import site 的注释
+# Enable site-packages: uncomment "import site" in python*._pth
 $pthFile = Get-ChildItem $pythonDir -Filter "python*._pth" | Select-Object -First 1
 if ($pthFile) {
     $content = Get-Content $pthFile.FullName
@@ -119,24 +106,23 @@ if ($pthFile) {
         }
     }
     Set-Content $pthFile.FullName $content
-    Write-Ok "已启用 site-packages（$($pthFile.Name)）"
+    Write-Ok "site-packages enabled"
 }
 
-# 验证 pip
+# Verify pip
 & $pythonExe -m pip --version 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) {
-    Write-Err "pip 不可用"
+    Write-Err "pip not working"
     exit 1
 }
-Write-Ok "pip 已就绪"
+Write-Ok "pip ready"
 
-# ---- 安装后端依赖 ----
+# ---- Install backend dependencies ----
 
-Write-Step "安装后端依赖 ..."
+Write-Step "Installing backend dependencies ..."
 
 Push-Location $backendDir
 
-# 用嵌入式 Python 的 pip 直接 install
 & $pythonExe -m pip install --no-warn-script-location `
     "fastapi>=0.115.0" `
     "uvicorn[standard]>=0.32.0" `
@@ -153,16 +139,16 @@ Push-Location $backendDir
     2>&1 | Out-Host
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Err "依赖安装失败"
+    Write-Err "Dependency installation failed"
     Pop-Location
     exit 1
 }
 
 Pop-Location
 
-# ---- 验证 ----
+# ---- Verify ----
 
-Write-Step "验证关键依赖 ..."
+Write-Step "Verifying dependencies ..."
 
 $verifyScript = @"
 import sys
@@ -184,10 +170,10 @@ else:
 
 & $pythonExe -c $verifyScript 2>&1 | Out-Host
 if ($LASTEXITCODE -ne 0) {
-    Write-Err "依赖验证失败"
+    Write-Err "Dependency verification failed"
     exit 1
 }
 
-Write-Ok "全部依赖验证通过"
+Write-Ok "All dependencies verified"
 Write-Host ""
-Write-Host "嵌入式 Python 环境已就绪：backend/python/" -ForegroundColor Green
+Write-Host "Embedded Python ready: backend/python/" -ForegroundColor Green
