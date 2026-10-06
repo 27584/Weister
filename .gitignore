@@ -12,7 +12,8 @@ out/
 dist/
 # Electron 构建产物（release/ 目录）
 electron/release/
-# Electron 构建中间件（node_modules 已被上方规则覆盖）
+# 嵌入式 Python 环境（由 prepare-python.ps1 下载安装）
+backend/python/
 *.tsbuildinfo
 
 # ---- 环境变量（保留模板）----

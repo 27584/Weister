@@ -27,8 +27,21 @@
     ],
     "extraResources": [
       {
-        "from": "../backend/dist/backend",
-        "to": "backend"
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/.venv/**",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/data/checkpoints/**",
+          "!**/data/runs/**",
+          "!**/data/profiles.json",
+          "!**/.pytest_cache/**",
+          "!**/.ruff_cache/**",
+          "!**/dist/**",
+          "!**/*.spec"
+        ]
       },
       {
         "from": "../frontend/.next/standalone",

@@ -29,13 +29,15 @@ const require = createRequire(import.meta.url);
 const isDev = !app.isPackaged;
 const ROOT = isDev ? join(__dirname, "..") : process.resourcesPath;
 
-// 后端可执行文件路径
-const BACKEND_EXE = isDev
+// 后端 Python 解释器路径
+// 开发模式：用 backend/.venv 的 Python
+// 打包模式：用嵌入的 python/python/ 目录下的 python.exe
+const BACKEND_PYTHON = isDev
   ? join(ROOT, "backend", ".venv", "Scripts", "python.exe")
-  : join(ROOT, "backend", "backend.exe");
+  : join(ROOT, "backend", "python", "python.exe");
 
-const BACKEND_CWD = isDev ? join(ROOT, "backend") : join(ROOT, "backend");
-const BACKEND_ARGS = isDev ? ["-m", "app"] : [];
+const BACKEND_CWD = join(ROOT, "backend");
+const BACKEND_ARGS = ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"];
 
 // 前端 standalone server 路径
 const FRONTEND_SERVER = isDev
@@ -83,10 +85,10 @@ function startBackend() {
     DATA_DIR: USER_DATA_DIR,
   };
 
-  console.log(`[main] Starting backend: ${BACKEND_EXE} ${BACKEND_ARGS.join(" ")}`);
+  console.log(`[main] Starting backend: ${BACKEND_PYTHON} ${BACKEND_ARGS.join(" ")}`);
   console.log(`[main] DATA_DIR=${USER_DATA_DIR}`);
 
-  backendProcess = spawn(BACKEND_EXE, BACKEND_ARGS, {
+  backendProcess = spawn(BACKEND_PYTHON, BACKEND_ARGS, {
     cwd: BACKEND_CWD,
     env,
     windowsHide: false,

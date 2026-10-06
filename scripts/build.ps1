@@ -59,11 +59,6 @@ $step = 0
 
 Write-Step 0 $total "检查环境"
 
-if (-not (Test-Command "uv")) {
-    Write-Err "未找到 uv，请先安装：https://docs.astral.sh/uv/"
-    exit 1
-}
-
 if (-not (Test-Command "pnpm")) {
     Write-Err "未找到 pnpm，请先安装：npm install -g pnpm"
     exit 1
@@ -74,44 +69,25 @@ if (-not (Test-Command "node")) {
     exit 1
 }
 
-Write-Ok "uv / pnpm / node 已就绪"
+Write-Ok "pnpm / node 已就绪"
 
-# ---- Step 1：后端 PyInstaller 打包 ----
+# ---- Step 1：准备嵌入式 Python 环境 ----
 
 if (-not $SkipBackend) {
     $step++
-    Write-Step $step $total "后端 PyInstaller 打包"
+    Write-Step $step $total "准备嵌入式 Python 环境"
 
-    Push-Location "$root/backend"
+    $prepareScript = Join-Path $PSScriptRoot "prepare-python.ps1"
+    & $prepareScript
 
-    # 确保 PyInstaller 已安装
-    Write-Host "  检查 PyInstaller ..."
-    $pyinstallerCheck = uv run python -c "import PyInstaller; print(PyInstaller.__version__)" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  安装 PyInstaller ..."
-        uv pip install pyinstaller 2>&1 | Out-Host
-    }
-
-    # 清理旧产物
-    if (Test-Path "dist/backend") {
-        Write-Host "  清理旧的后端构建产物 ..."
-        Remove-Item "dist/backend" -Recurse -Force
-    }
-
-    Write-Host "  执行 PyInstaller ..."
-    uv run pyinstaller pyinstaller.spec --noconfirm 2>&1 | Out-Host
-
-    if (Test-Path "dist/backend/backend.exe") {
-        Write-Ok "后端打包成功：dist/backend/backend.exe"
+    if (Test-Path "$root/backend/python/python.exe") {
+        Write-Ok "嵌入式 Python 就绪：backend/python/python.exe"
     } else {
-        Write-Err "后端打包失败：dist/backend/backend.exe 不存在"
-        Pop-Location
+        Write-Err "嵌入式 Python 准备失败"
         exit 1
     }
-
-    Pop-Location
 } else {
-    Write-Warn "跳过后端打包"
+    Write-Warn "跳过后端准备"
 }
 
 # ---- Step 2：前端 Next.js standalone 构建 ----
