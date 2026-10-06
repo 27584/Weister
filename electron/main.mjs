@@ -54,6 +54,7 @@ let FRONTEND_PORT = 3000;
 let backendProcess = null;
 let frontendProcess = null;
 let mainWindow = null;
+let loadingWindow = null;
 
 /**
  * 查找可用端口：从 preferred 开始，被占用则 +1 递增（最多试 20 个）
@@ -151,11 +152,16 @@ function startFrontend() {
     NODE_ENV: "production",
   };
 
-  console.log(`[main] Starting frontend: node ${FRONTEND_SERVER}`);
+  console.log(`[main] Starting frontend via Electron Node runtime: ${FRONTEND_SERVER}`);
 
-  frontendProcess = spawn("node", [FRONTEND_SERVER], {
+  // 用 Electron 自带的 Node 运行时启动前端，不依赖系统安装 Node.js。
+  // ELECTRON_RUN_AS_NODE=1 让 electron.exe 以纯 Node 模式运行。
+  frontendProcess = spawn(process.execPath, [FRONTEND_SERVER], {
     cwd: dirname(FRONTEND_SERVER),
-    env,
+    env: {
+      ...env,
+      ELECTRON_RUN_AS_NODE: "1",
+    },
     windowsHide: false,
   });
 
@@ -222,6 +228,74 @@ function waitForService(name, port, maxAttempts = 30, intervalMs = 1000) {
 /**
  * 创建主窗口
  */
+/**
+ * 创建加载窗口：启动后立即显示，避免用户对着空白窗口等待
+ */
+function createLoadingWindow() {
+  loadingWindow = new BrowserWindow({
+    width: 460,
+    height: 340,
+    frame: false,
+    resizable: false,
+    center: true,
+    show: true,
+    backgroundColor: "#0d1117",
+    title: "Weister",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  loadingWindow.loadFile(join(__dirname, "loading.html"));
+  loadingWindow.on("closed", () => {
+    loadingWindow = null;
+  });
+}
+
+/**
+ * 向加载窗口推送进度
+ */
+function reportProgress(pct, text) {
+  if (!loadingWindow || loadingWindow.isDestroyed()) return;
+  loadingWindow.webContents.executeJavaScript(
+    `window.__weisterOnProgress && window.__weisterOnProgress(${pct}, ${JSON.stringify(text)})`,
+  );
+}
+
+function reportError(msg) {
+  if (!loadingWindow || loadingWindow.isDestroyed()) return;
+  loadingWindow.webContents.executeJavaScript(
+    `window.__weisterOnError && window.__weisterOnError(${JSON.stringify(msg)})`,
+  );
+}
+
+/**
+ * 轮询等待前端 HTTP 服务可用
+ */
+function waitForHttp(url, maxAttempts = 40, intervalMs = 500) {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    const check = () => {
+      attempts++;
+      const req = http.get(url, (res) => {
+        res.resume();
+        resolve();
+      });
+      req.on("error", () => {
+        if (attempts < maxAttempts) setTimeout(check, intervalMs);
+        else reject(new Error(`timeout: ${url}`));
+      });
+      req.setTimeout(2000, () => {
+        req.destroy();
+        if (attempts < maxAttempts) setTimeout(check, intervalMs);
+        else reject(new Error(`timeout: ${url}`));
+      });
+    };
+    check();
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -278,10 +352,15 @@ app.whenReady().then(async () => {
   console.log(`[main] userData: ${app.getPath("userData")}`);
   console.log(`[main] isDev: ${isDev}`);
 
+  // 立即显示加载窗口，不要让用户对着空白/无响应等待
+  createLoadingWindow();
+  reportProgress(8, "分配端口…");
+
   // 动态分配空闲端口，避免与其他应用冲突（不再强杀端口上的进程）
   BACKEND_PORT = await findFreePort(8000);
   FRONTEND_PORT = await findFreePort(3000);
   console.log(`[main] Selected ports: backend=${BACKEND_PORT} frontend=${FRONTEND_PORT}`);
+  reportProgress(20, "启动后端服务…");
 
   // 通过环境变量把实际端口传给 preload（渲染进程读取）
   process.env.WEISTER_API_BASE = `http://127.0.0.1:${BACKEND_PORT}`;
@@ -289,20 +368,27 @@ app.whenReady().then(async () => {
   try {
     // 1. 启动后端
     startBackend();
-    await waitForService("backend", BACKEND_PORT, 30, 1000);
+    reportProgress(35, "等待后端就绪…");
+    await waitForService("backend", BACKEND_PORT, 60, 1000);
 
     // 2. 启动前端
+    reportProgress(65, "启动界面服务…");
     startFrontend();
-    // Next.js standalone server 没有 /api/health 端点，等待 3 秒让它启动
-    console.log("[main] Waiting 3s for frontend to start...");
-    await new Promise((r) => setTimeout(r, 3000));
 
-    // 3. 创建窗口
+    reportProgress(80, "等待界面就绪…");
+    await waitForHttp(`http://127.0.0.1:${FRONTEND_PORT}/`, 60, 500);
+
+    // 3. 服务就绪，切到主界面
+    reportProgress(100, "加载应用…");
     createWindow();
+
+    if (loadingWindow && !loadingWindow.isDestroyed()) {
+      loadingWindow.close();
+      loadingWindow = null;
+    }
   } catch (err) {
     console.error("[main] Startup failed:", err);
-    // 即使失败也创建窗口，让用户看到错误
-    createWindow();
+    reportError(String(err && err.message ? err.message : err));
   }
 });
 

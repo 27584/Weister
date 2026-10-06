@@ -22,7 +22,8 @@
     },
     "files": [
       "main.mjs",
-      "preload.cjs"
+      "preload.cjs",
+      "loading.html"
     ],
     "extraResources": [
       {
