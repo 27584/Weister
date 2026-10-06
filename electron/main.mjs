@@ -11,7 +11,7 @@
  * 前端端口：3000
  */
 
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, ipcMain } from "electron";
 import { spawn, exec } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync } from "node:fs";
@@ -37,7 +37,10 @@ const BACKEND_PYTHON = isDev
   : join(ROOT, "backend", "python", "python.exe");
 
 const BACKEND_CWD = join(ROOT, "backend");
-const BACKEND_ARGS = ["-m", "uvicorn", "app.main:app"];
+// 用 `-m app`（app/__main__.py 会读 HOST/PORT 环境变量），
+// 不要直接用 `-m uvicorn`——uvicorn 只认命令行参数，不读 PORT 环境变量，
+// 会静默退回默认 8000 端口，导致与 findFreePort 选出的端口不一致。
+const BACKEND_ARGS = ["-m", "app"];
 
 // 前端 standalone server 路径
 const FRONTEND_SERVER = isDev
@@ -239,9 +242,10 @@ function createLoadingWindow() {
     resizable: false,
     center: true,
     show: true,
-    backgroundColor: "#0d1117",
+    backgroundColor: "#ffffff",
     title: "Weister",
     webPreferences: {
+      preload: join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -304,12 +308,27 @@ function createWindow() {
     minHeight: 700,
     title: "Weister",
     icon: join(__dirname, "build", "icon.ico"),
+    frame: false, // 无边框：用页面内的自定义标题栏（可拖动 + 三按钮）
+    backgroundColor: "#ffffff",
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  // 自定义标题栏按钮的 IPC 处理
+  ipcMain.on("wt:minimize", () => mainWindow && mainWindow.minimize());
+  ipcMain.on("wt:maximize", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.on("wt:close", () => mainWindow && mainWindow.close());
+
+  // 同步最大化状态给渲染进程（切换按钮图标）
+  mainWindow.on("maximize", () => mainWindow?.webContents.send("wt:maximized", true));
+  mainWindow.on("unmaximize", () => mainWindow?.webContents.send("wt:maximized", false));
 
   // 开发模式打开 DevTools
   if (isDev) {

@@ -3,91 +3,103 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
-    <title>Weister 启动中</title>
+    <title>Weister</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body {
         height: 100%;
-        background: #0d1117;
-        color: #e6edf3;
+        background: #ffffff;
+        color: #1a1f2b;
         font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         user-select: none;
+        overflow: hidden;
       }
-      .wrap { width: 380px; text-align: center; }
-      .logo {
-        width: 68px; height: 68px; margin: 0 auto 22px;
-        border-radius: 16px;
-        background: linear-gradient(135deg, #2f81f7, #a371f7);
+      /* 自定义标题栏（可拖动） */
+      .titlebar {
+        position: fixed; top: 0; left: 0; right: 0; height: 34px;
+        display: flex; align-items: center; justify-content: space-between;
+        background: #ffffff; border-bottom: 1px solid #e3e6ec;
+        -webkit-app-region: drag;
+      }
+      .titlebar .t { font-size: 12px; color: #5b6474; padding-left: 12px; }
+      .titlebar .btns { display: flex; -webkit-app-region: no-drag; height: 100%; }
+      .titlebar .b {
+        width: 46px; height: 100%; border: 0; background: transparent;
         display: flex; align-items: center; justify-content: center;
-        font-size: 30px; font-weight: 700; letter-spacing: -1px;
+        color: #1a1f2b; transition: background .12s;
       }
-      h1 { font-size: 19px; font-weight: 600; margin-bottom: 6px; }
-      .sub { font-size: 13px; color: #7d8590; margin-bottom: 26px; }
-      .bar {
-        height: 4px; background: #21262d; border-radius: 2px;
-        overflow: hidden; margin-bottom: 14px;
+      .titlebar .b:hover { background: #f5f6f8; }
+      .titlebar .b.close:hover { background: #e81123; color: #fff; }
+      .titlebar svg { width: 11px; height: 11px; }
+
+      .wrap {
+        height: 100%; padding-top: 34px;
+        display: flex; align-items: center; justify-content: center;
       }
-      .fill {
-        height: 100%; width: 0%;
-        background: linear-gradient(90deg, #2f81f7, #a371f7);
-        border-radius: 2px;
-        transition: width 0.4s ease;
+      .inner { width: 340px; text-align: center; }
+      .logo {
+        width: 56px; height: 56px; margin: 0 auto 18px;
+        border-radius: 12px;
+        background: #1a1f2b;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 26px; font-weight: 700; color: #ffffff;
       }
-      .step { font-size: 12px; color: #8b949e; height: 16px; }
-      .err { color: #f85149; font-size: 13px; margin-top: 12px; display: none; }
+      h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; color: #1a1f2b; }
+      .sub { font-size: 12px; color: #5b6474; margin-bottom: 24px; }
+      .bar { height: 3px; background: #e3e6ec; border-radius: 2px; overflow: hidden; margin-bottom: 12px; }
+      .fill { height: 100%; width: 0%; background: #1a1f2b; border-radius: 2px; transition: width .35s ease; }
+      .step { font-size: 12px; color: #5b6474; height: 16px; }
+      .err { color: #b91c1c; font-size: 12px; margin-top: 10px; display: none; line-height: 1.5; word-break: break-all; }
     </style>
   </head>
   <body>
+    <div class="titlebar">
+      <div class="t">Weister</div>
+      <div class="btns">
+        <button class="b" id="b-min" title="最小化">
+          <svg viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor"/></svg>
+        </button>
+        <button class="b close" id="b-close" title="关闭">
+          <svg viewBox="0 0 12 12"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+      </div>
+    </div>
+
     <div class="wrap">
-      <div class="logo">W</div>
-      <h1>Weister</h1>
-      <div class="sub">金融投研智能体</div>
-      <div class="bar"><div class="fill" id="fill"></div></div>
-      <div class="step" id="step">正在启动…</div>
-      <div class="err" id="err"></div>
+      <div class="inner">
+        <div class="logo">W</div>
+        <h1>Weister</h1>
+        <div class="sub">金融投研智能体</div>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+        <div class="step" id="step">正在启动…</div>
+        <div class="err" id="err"></div>
+      </div>
     </div>
 
     <script>
-      const STEPS = [
-        { at: 5, text: "分配端口…" },
-        { at: 20, text: "启动后端服务…" },
-        { at: 55, text: "等待后端就绪…" },
-        { at: 75, text: "启动界面服务…" },
-        { at: 92, text: "加载应用…" },
-      ];
       let reached = 0;
-
-      // 无 IPC 时（浏览器直接打开）用定时器模拟推进，仅用于视觉预览
-      const hasIPC = typeof window.__weisterOnProgress === "function";
-
       function setProgress(pct, text) {
         reached = Math.max(reached, pct);
         document.getElementById("fill").style.width = reached + "%";
         if (text) document.getElementById("step").textContent = text;
       }
-
       function showError(msg) {
         const el = document.getElementById("err");
         el.textContent = msg;
         el.style.display = "block";
         document.getElementById("step").textContent = "启动失败";
       }
+      window.__weisterOnProgress = setProgress;
+      window.__weisterOnError = showError;
 
-      if (hasIPC) {
-        window.__weisterOnProgress = setProgress;
-        window.__weisterOnError = showError;
-      } else {
-        let p = 5;
-        const timer = setInterval(() => {
-          p += 3;
-          if (p > 88) { clearInterval(timer); return; }
-          const s = STEPS.find((x) => x.at > p - 3) || STEPS[STEPS.length - 1];
-          setProgress(p, s.text);
-        }, 300);
-      }
+      // 标题栏按钮（通过 preload 不可用时的降级：直接由主进程轮询进度，
+      // 这里按钮用 location.hash 触发不了 IPC，改由主进程在加载窗口也挂 preload）
+      document.getElementById("b-min").addEventListener("click", () => {
+        window.WEISTER && window.WEISTER.minimize();
+      });
+      document.getElementById("b-close").addEventListener("click", () => {
+        window.WEISTER && window.WEISTER.close();
+      });
     </script>
   </body>
 </html>

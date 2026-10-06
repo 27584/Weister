@@ -97,16 +97,22 @@ Remove-Item $getPipPath -Force
 # Enable site-packages: uncomment "import site" in python*._pth
 $pthFile = Get-ChildItem $pythonDir -Filter "python*._pth" | Select-Object -First 1
 if ($pthFile) {
-    $content = Get-Content $pthFile.FullName
-    $content = $content | ForEach-Object {
-        if ($_ -match "^#import site") {
-            "import site"
-        } else {
-            $_
-        }
-    }
-    Set-Content $pthFile.FullName $content
-    Write-Ok "site-packages enabled"
+    # Write a fresh ._pth: site-packages enabled + ".." so the backend
+    # package (../app) is importable via `python -m app`.
+    # Without "..", the embedded interpreter only sees python/ itself and
+    # `python -m app` fails with "No module named app".
+    $zipLine = Get-Content $pthFile.FullName | Where-Object { $_ -match "\.zip$" } | Select-Object -First 1
+    if (-not $zipLine) { $zipLine = "python312.zip" }
+    $lines = @(
+        $zipLine,
+        ".",
+        "..",
+        "",
+        "# Uncomment to run site.main() automatically",
+        "import site"
+    )
+    Set-Content $pthFile.FullName $lines
+    Write-Ok "site-packages enabled and backend path added"
 }
 
 # Verify pip

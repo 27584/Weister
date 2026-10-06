@@ -1,22 +1,92 @@
 /**
  * Weister 桌面客户端 — 预加载脚本
  *
- * 最小化设计：不暴露 Node API，仅注入客户端所需的运行时常量。
- *
- * API_BASE 由主进程在启动时动态分配后端端口并注入（WEISTER_API_BASE 环境变量），
- * 渲染进程通过 window.WEISTER.API_BASE 读取——这样端口冲突时无需重新构建前端。
+ * 1. 注入运行时常量（API_BASE 由主进程动态分配端口后传入）
+ * 2. 注入自定义标题栏（无边框窗口的可拖动栏 + 最小化/最大化/关闭按钮）
  */
 
-const { contextBridge } = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 
 const apiBase =
   process.env.WEISTER_API_BASE || `http://127.0.0.1:${process.env.WEISTER_BACKEND_PORT || 8000}`;
 
 contextBridge.exposeInMainWorld("WEISTER", {
-  /** 后端 API 地址（主进程动态分配，运行时注入） */
   API_BASE: apiBase,
-  /** 标识运行在桌面客户端中 */
   IS_DESKTOP: true,
-  /** 应用版本 */
   VERSION: process.env.npm_package_version || "0.3.1",
+  minimize: () => ipcRenderer.send("wt:minimize"),
+  maximize: () => ipcRenderer.send("wt:maximize"),
+  close: () => ipcRenderer.send("wt:close"),
 });
+
+// ---- 自定义标题栏 ----
+
+const TITLEBAR_CSS = `
+  #weister-titlebar {
+    position: fixed; top: 0; left: 0; right: 0; height: 34px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: #ffffff; border-bottom: 1px solid #e3e6ec;
+    -webkit-app-region: drag; user-select: none; z-index: 2147483647;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  #weister-titlebar .wt-title {
+    font-size: 12px; color: #5b6474; padding-left: 12px; letter-spacing: 0.2px;
+  }
+  #weister-titlebar .wt-btns { display: flex; -webkit-app-region: no-drag; height: 100%; }
+  #weister-titlebar .wt-btn {
+    width: 46px; height: 100%; border: 0; background: transparent; cursor: default;
+    display: flex; align-items: center; justify-content: center;
+    color: #1a1f2b; transition: background 0.12s;
+  }
+  #weister-titlebar .wt-btn:hover { background: #f5f6f8; }
+  #weister-titlebar .wt-btn.wt-close:hover { background: #e81123; color: #ffffff; }
+  #weister-titlebar .wt-btn svg { width: 11px; height: 11px; }
+  body { padding-top: 34px !important; box-sizing: border-box; }
+`;
+
+function injectTitlebar() {
+  // loading.html 自带标题栏，跳过注入
+  if (document.getElementById("weister-titlebar") || document.getElementById("b-close")) return;
+
+  const style = document.createElement("style");
+  style.textContent = TITLEBAR_CSS;
+  document.head.appendChild(style);
+
+  const bar = document.createElement("div");
+  bar.id = "weister-titlebar";
+  bar.innerHTML = `
+    <div class="wt-title">Weister</div>
+    <div class="wt-btns">
+      <button class="wt-btn" id="wt-min" title="最小化">
+        <svg viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button class="wt-btn" id="wt-max" title="最大化">
+        <svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+      <button class="wt-btn wt-close" id="wt-close" title="关闭">
+        <svg viewBox="0 0 12 12"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </div>
+  `;
+  document.body.appendChild(bar);
+
+  document.getElementById("wt-min").addEventListener("click", () => ipcRenderer.send("wt:minimize"));
+  document.getElementById("wt-max").addEventListener("click", () => ipcRenderer.send("wt:maximize"));
+  document.getElementById("wt-close").addEventListener("click", () => ipcRenderer.send("wt:close"));
+
+  // 最大化状态同步按钮图标
+  ipcRenderer.on("wt:maximized", (_e, isMax) => {
+    const btn = document.getElementById("wt-max");
+    if (!btn) return;
+    btn.innerHTML = isMax
+      ? `<svg viewBox="0 0 12 12"><rect x="1.5" y="3.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 3.5 V1.5 H10.5 V8.5 H8.5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`
+      : `<svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`;
+    btn.title = isMax ? "还原" : "最大化";
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", injectTitlebar);
+} else {
+  injectTitlebar();
+}
