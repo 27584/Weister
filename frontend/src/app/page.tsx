@@ -42,7 +42,9 @@ import { ChatComposer } from "@/components/ChatComposer";
 import { AgentStage } from "@/components/AgentStage";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { SettingsModal } from "@/components/SettingsModal";
+import { WindowControls } from "@/components/WindowControls";
 import { ConfirmHost } from "@/components/ConfirmDialog";
+import { useDesktopBridge } from "@/lib/desktop";
 
 type AppMode = "chat" | "pipeline";
 
@@ -67,6 +69,8 @@ export default function Home() {
   const analyzeRun = useAnalyzeRun();
   const profile = activeProfile(store);
   const connected = Boolean(profile?.apiKey?.trim());
+  /** 桌面客户端（Electron）下顶栏同时充当窗口标题栏，Web 下为 null */
+  const bridge = useDesktopBridge();
 
   useEffect(() => {
     void loadStore().then(setStore);
@@ -400,12 +404,19 @@ export default function Home() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-base-200">
       <ConfirmHost />
-      {/* ---------- 顶栏 ---------- */}
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-base-300 bg-base-100 px-3 py-2">
+      {/* ---------- 顶栏（桌面端同时也是窗口标题栏：整条可拖动） ---------- */}
+      <header
+        className={[
+          bridge ? "app-drag" : "",
+          "flex shrink-0 items-center justify-between gap-3 border-b border-base-300 bg-base-100 px-3 py-2",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <div className="flex min-w-0 items-center gap-2.5">
           <button
             onClick={() => setSidebarOpen((v) => !v)}
-            className="btn btn-ghost btn-xs h-7 w-7 min-h-0 shrink-0 p-0"
+            className="app-no-drag btn btn-ghost btn-xs h-7 w-7 min-h-0 shrink-0 p-0"
             title={sidebarOpen ? "收起对话列表" : "展开对话列表"}
           >
             {sidebarOpen ? (
@@ -536,6 +547,9 @@ export default function Home() {
                     : "运行中"
                 : "就绪"}
           </span>
+
+          {/* 窗口三按钮嵌在顶栏右端，与设置等控件同一条栏 */}
+          <WindowControls />
         </div>
       </header>
 

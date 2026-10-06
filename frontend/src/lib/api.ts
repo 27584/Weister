@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { API_BASE } from "./apiBase";
 import type {
   AgentEvent,
   AgentRun,
@@ -9,18 +10,6 @@ import type {
   ProviderCatalog,
   SearchConfig,
 } from "./types";
-
-/**
- * 后端 API 基地址。
- *
- * 桌面客户端下由 preload 注入 window.WEISTER.API_BASE（主进程动态分配端口后
- * 在运行时设置）——端口冲突时无需重新构建前端。
- * 浏览器开发模式下回退到 NEXT_PUBLIC_API_BASE 或默认 8000 端口。
- */
-const API_BASE: string =
-  (typeof window !== "undefined" && (window as { WEISTER?: { API_BASE?: string } }).WEISTER?.API_BASE) ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "http://127.0.0.1:8000";
 
 export interface LLMConfig {
   provider: string;

@@ -12,22 +12,13 @@ from __future__ import annotations
 
 import os
 
-
-def _resolve_data_dir() -> str:
-    """确定数据目录。
-
-    优先级：
-        1. 环境变量 DATA_DIR（Electron 主进程传入）
-        2. 开发模式下的 ./data（相对 backend/ 目录）
-    """
-    env = os.environ.get("DATA_DIR")
-    if env:
-        return env
-    return "./data"
+from app.paths import resolve_data_dir
 
 
 def main() -> None:
-    os.environ.setdefault("DATA_DIR", _resolve_data_dir())
+    # 先落到环境变量里，让 config.Settings 与 storage 读到同一处。
+    # 解析见 app/paths.py：绝对路径，默认 %APPDATA%\Weister\data。
+    os.environ.setdefault("DATA_DIR", str(resolve_data_dir()))
 
     import uvicorn
 

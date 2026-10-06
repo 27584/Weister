@@ -1,0 +1,6 @@
+# pnpm 默认拦截依赖的构建脚本。electron 依赖 postinstall 下载并把
+# Electron 二进制解压到 node_modules/electron/dist；一旦被拦下，
+# dist 为空，electron-builder 无法运行（打包产物也会缺 electron.exe）。
+# 只放行 electron 这一个包，其余依赖的构建脚本继续被忽略。
+allowBuilds:
+  electron: true

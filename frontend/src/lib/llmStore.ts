@@ -1,6 +1,6 @@
+import { API_BASE } from "./apiBase";
 import { EMPTY_SEARCH, type LLMProfile, type LLMStore, type SearchConfig } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000";
 const CACHE_KEY = "weister.llm.store.cache";
 
 export function newId(): string {

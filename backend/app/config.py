@@ -9,16 +9,25 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .paths import env_file, resolve_data_dir
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # env_file 走绝对路径：相对路径会被 pydantic-settings 按 cwd 解析，
+    # 于是 `python -m app` 和 `uvicorn --reload` 可能读到不同的 .env。
+    model_config = SettingsConfigDict(
+        env_file=str(env_file()), env_file_encoding="utf-8", extra="ignore"
+    )
 
     llm_base_url: str = "https://api.deepseek.com/v1"
     llm_api_key: str = ""
     llm_model: str = "deepseek-chat"
     llm_temperature: float = 0.2
 
-    data_dir: str = "./data"
+    # 绝对路径。默认 %APPDATA%\Weister\data；DATA_DIR 环境变量优先。
+    data_dir: str = str(resolve_data_dir())
+    # 桌面客户端启动时由 Electron 传入真实端口覆盖此默认值；
+    # 默认值只服务纯浏览器开发模式（next dev 跑在 3000）。
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # 联网搜索源（tools/web.py 按此顺序降级：tavily → bocha → searxng → bing_cn）

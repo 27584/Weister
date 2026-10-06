@@ -3,7 +3,7 @@
   "version": "0.3.1",
   "private": true,
   "description": "Weister 金融投研智能体桌面客户端",
-  "main": "main.mjs",
+  "main": "main.cjs",
   "scripts": {
     "dev": "electron .",
     "prebuild": "node scripts/prepare-frontend.cjs",
@@ -12,8 +12,8 @@
   },
   "author": "Weister",
   "devDependencies": {
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.0"
+    "electron": "33.4.11",
+    "electron-builder": "25.0.0"
   },
   "build": {
     "appId": "com.weister.app",
@@ -22,7 +22,7 @@
       "output": "release"
     },
     "files": [
-      "main.mjs",
+      "main.cjs",
       "preload.cjs",
       "loading.html",
       "build/icon.ico",
@@ -34,6 +34,9 @@
         "to": "backend",
         "filter": [
           "**/*",
+          "!**/.env",
+          "!**/.env.local",
+          "!**/.weister-*",
           "!**/.venv/**",
           "!**/__pycache__/**",
           "!**/*.pyc",
@@ -47,8 +50,9 @@
         ]
       },
       {
-        "from": "../frontend/.next/standalone",
-        "to": "frontend"
+        "from": "build/frontend",
+        "to": "frontend",
+        "filter": ["**/*"]
       }
     ],
     "win": {

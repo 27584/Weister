@@ -20,6 +20,16 @@
 - 修正失效描述：`api.py` → `app/api/` 包 · `ResultPanel` → `PipelineResultView` · 文本 action 协议 → 原生 function calling · supervisor 固定 6 轮 → 进展检测（`MAX_IDLE_ROUNDS = 3` / `ABSOLUTE_ROUND_LIMIT = 50`） · 8000 字输出熔断 → 不传 `max_tokens` + `max_steps` 防御 · 前端 6 页签布局 → 对话 / 建模双形态
 - THIRD_PARTY 补齐 tiktoken、可选依赖（python-docx / openpyxl / RapidOCR / python-pptx）与 pytest 系；数据来源补记腾讯 / 东方财富 / 新浪行情接口、联网检索源与真实年报样例（宁德时代 2024 年报）
 
+### 桌面端：自定义标题栏与页面顶栏合并
+- 此前 `electron/preload.cjs` 在 `DOMContentLoaded` 注入一条 `position:fixed; top:0; height:34px` 的 `#weister-titlebar`，并给根节点补 `padding-top:34px` —— 视觉上是在页面顶栏（含「设置」按钮那条）**上方又叠了一条栏**。现在改为「页面顶栏自身就是唯一标题栏」：
+  - `preload.cjs` 删除注入的 DOM / CSS / `applyRootOffset()` / `MutationObserver`，只保留 `window.WEISTER` 桥，并新增 `onMaximizeState(cb)`（返回取消订阅函数）
+  - `frontend/src/lib/desktop.ts`（新增）：`WeisterBridge` 类型 + `getDesktopBridge()` + `useDesktopBridge()`（`useSyncExternalStore`，服务端快照返回 `null`，不与 Web 版产生 hydration 错位）
+  - `frontend/src/components/WindowControls.tsx`（新增）：最小化 / 最大化·还原 / 关闭三按钮，嵌在顶栏右端；桥不存在时返回 `null`
+  - `frontend/src/app/globals.css`：新增 `.app-drag` / `.app-no-drag`，并用 `.app-drag button, input, select, textarea, a` 兜底，让顶栏内控件自动脱离拖动区
+  - `frontend/src/app/page.tsx`：`<header>` 在桌面端加 `app-drag`，状态徽章之后插入 `<WindowControls />`；`electron/main.mjs` 保持 `frame:false`
+  - `electron/loading.html` 保留自带标题栏（启动阶段是独立无边框小窗，与主窗口无关）
+- 实测（Electron 33.4.11 + standalone 构建）：`headerCount=1`、`headerTop=0`、注入栏不存在、根节点 `padding-top:0`、无纵向滚动条、顶栏 10 个按钮全部 `no-drag`、点最大化后按钮切换为「还原」
+
 ### 工程 / 仓库卫生
 - `dev.ps1` / `check.ps1` 统一为 UTF-8 with BOM——Windows PowerShell 5.1 会按 ANSI(GBK) 解码无 BOM 的 `.ps1`，中文串错位后会抛出假性的 `MissingEndCurlyBrace` 语法错误
 - 清理构建缓存与临时产物（`.next`、`tsconfig.tsbuildinfo`、`__pycache__`、ruff/pytest 缓存），移除无引用的临时调试脚本 `backend/_run_py.js`

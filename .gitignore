@@ -12,6 +12,8 @@ out/
 dist/
 # Electron 构建产物（release/ 目录）
 electron/release/
+# 前端 staging：prepare-frontend.cjs 铺出，供 extraResources 复制
+electron/build/frontend/
 # 嵌入式 Python 环境（由 prepare-python.ps1 下载安装）
 backend/python/
 *.tsbuildinfo

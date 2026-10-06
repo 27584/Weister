@@ -233,6 +233,32 @@ samp,
   text-underline-offset: 2px;
 }
 
+/* ---------- 桌面端顶栏 = 窗口标题栏 ----------
+   Electron 无边框窗口不再注入额外标题栏，拖动区直接落在页面顶栏上：
+   整条 header 标为 drag，交互元素标为 no-drag 抢回点击。
+   规则只在 .app-drag 存在时生效（该类仅由桌面端加上），浏览器里
+   -webkit-app-region 本身无效，不会污染 Web 版的文字选中。 */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag,
+.app-no-drag *,
+.app-drag button,
+.app-drag input,
+.app-drag select,
+.app-drag textarea,
+.app-drag a {
+  -webkit-app-region: no-drag;
+}
+/* 拖动区文字不可选中，否则拖动窗口时会顺手选中品牌名 */
+.app-drag {
+  user-select: none;
+}
+.app-no-drag,
+.app-no-drag * {
+  user-select: auto;
+}
+
 /* 流式输出光标：一个实心竖条，不要闪烁动画 */
 .stream-caret::after {
   content: "";

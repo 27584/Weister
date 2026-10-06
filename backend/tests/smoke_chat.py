@@ -13,8 +13,9 @@
 """
 
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"D:\open_source_projects\Weister\backend")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.chat_supervisor import run_chat
 from app.llm import Delta

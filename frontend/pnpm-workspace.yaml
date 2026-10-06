@@ -1,3 +1,14 @@
+# 必须保持扁平（hoisted）依赖布局。
+#
+# Next.js `output: "standalone"` 会原样保留 pnpm 隔离布局下的符号链接，而链接的
+# target 是**构建机上的绝对路径**（如 D:\...\frontend\node_modules\.pnpm\next@...）。
+# 产物一旦离开构建机，链接必然断开（别人机器上不存在该绝对路径），
+# server.js 启动即 `Cannot find module 'next'` 并以退出码 1 结束。
+# 扁平布局下 node_modules 里是真实文件，trace 出的 standalone 因而自包含。
+#
+# 注意：pnpm 10+ 不再从 .npmrc 读取 node-linker，必须写在这里。
+nodeLinker: hoisted
+
 allowBuilds:
   sharp: false
   unrs-resolver: false

@@ -6,8 +6,9 @@ mock 一个始终返回 delegate(valuation_expert) 的 supervisor。
 """
 
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"D:\open_source_projects\Weister\backend")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import chat_supervisor as cs
 from app.chat_supervisor import run_chat
