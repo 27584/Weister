@@ -15,6 +15,7 @@
 - **实时可视化**：每位智能体一个独立工作窗口，实时显示思考、工具调用与输出流
 - **可追溯可复现**：全流程事件流、节点耗时追踪、原文页码引用、断点续跑
 - **金融专业性**：严格区分事实 / 推论 / 观点，估值假设附依据，风险附反向验证条件
+- **开箱即用的桌面客户端**：一键构建 Windows 免安装单文件（portable），自带嵌入式 Python 运行时与启动加载窗口，双击即用
 
 ---
 
@@ -26,6 +27,7 @@
 | 后端 | Python ≥3.12（开发环境实测 3.14）· FastAPI · LangGraph · PyMuPDF |
 | 通信 | Server-Sent Events（SSE） |
 | 模型 | OpenAI 兼容协议（DeepSeek / 通义千问 / 智谱 GLM / Kimi / OpenAI / Ollama 本地 / 自定义） |
+| 桌面端 | Electron 33 · electron-builder（Windows portable 免安装单文件，内置嵌入式 Python 运行时） |
 
 ---
 
@@ -36,6 +38,7 @@
 - **Node.js** ≥ 20
 - **pnpm** ≥ 9
 - **uv**（Python 包管理器，[安装指引](https://docs.astral.sh/uv/)）
+- 桌面端构建另需：PowerShell（`scripts/build.ps1`）、可访问 python.org 的网络（下载嵌入式 Python）
 
 ### 一键启动
 
@@ -70,6 +73,20 @@ cd frontend
 pnpm install
 pnpm dev
 ```
+
+### 桌面客户端构建（Windows）
+
+```powershell
+.\scripts\build.ps1            # 全量：嵌入式 Python → 前端 standalone → Electron portable
+.\scripts\build.ps1 -SkipBackend   # 已准备过 backend/python 时跳过第一步
+```
+
+脚本三步：① `scripts/prepare-python.ps1` 下载 Python 3.12 嵌入式包到 `backend/python/` 并安装依赖；② 前端 `pnpm build`（standalone 输出）；③ `electron` 目录 `pnpm build`（electron-builder 打包，产物在 `electron/release/*.exe`）。
+
+> 嵌入式 Python 全程以 `-s` 旗标运行以隔离用户级 site-packages——这是踩过
+> 「构建机 pip 假安装 → 分发机 `ModuleNotFoundError: uvicorn`」的坑后确定的方案，
+> 细节见 `scripts/prepare-python.ps1` 头部注释。桌面端启动链路与数据目录说明见
+> [USAGE.md](docs/USAGE.md) 的「桌面客户端」章节。
 
 ### 访问
 
@@ -190,7 +207,7 @@ pnpm dev
 
 ## 界面说明
 
-顶栏：模型状态徽标（未配置时提示「点击设置」）· 新对话 · 协作 · 设置（弹窗）·「对话 / 建模」形态切换。
+顶栏：模型状态徽标（未配置时提示「点击设置」）· 新对话 · 协作 · 设置（弹窗）·「对话 / 建模」形态切换。桌面客户端下顶栏同时充当窗口标题栏（可拖动移动窗口），右端有最小化 / 最大化·还原 / 关闭三按钮；浏览器访问时这三处自动隐藏，与 Web 版观感一致。
 
 ```
 ┌────────────┬──────────────────────────┬────────────────────┐
@@ -301,8 +318,11 @@ pnpm dev
 ```
 .
 ├── README.md                  本文档
-├── dev.ps1                    一键启动脚本
+├── dev.ps1                    一键启动脚本（开发）
 ├── check.ps1                  质量门禁（ruff + pytest + tsc）
+├── scripts/
+│   ├── build.ps1              桌面客户端一键构建（三步）
+│   └── prepare-python.ps1     准备嵌入式 Python 运行时（backend/python/）
 ├── CHANGELOG.md               版本变更记录
 ├── docs/                      详细文档
 │   ├── ARCHITECTURE.md        架构详解
@@ -312,11 +332,21 @@ pnpm dev
 │   ├── THIRD_PARTY.md         第三方依赖清单（名称/版本/来源/许可证/使用范围）
 │   └── architecture.html      架构图（浏览器直接打开）
 │
+├── electron/                  桌面客户端（Electron 壳）
+│   ├── main.cjs               主进程：拉起后端/前端、动态端口、加载窗口
+│   ├── preload.cjs            注入 window.WEISTER 桥（API 基址 + 窗口控制）
+│   ├── loading.html           启动加载窗口
+│   ├── scripts/prepare-frontend.cjs  打包前物化 standalone（符号链接解引用等）
+│   └── package.json           electron-builder 配置（portable 目标）
+│
 ├── backend/
 │   ├── pyproject.toml
 │   ├── .env.example
+│   ├── python/                嵌入式 Python 运行时（构建脚本生成，不纳入版本控制）
 │   ├── app/
 │   │   ├── main.py            应用入口（挂载 app/api/ 各路由）
+│   │   ├── __main__.py        `python -m app` 入口（读 HOST/PORT 环境变量）
+│   │   ├── paths.py           路径解析：数据目录按平台落 %APPDATA%（唯一来源）
 │   │   ├── api/               HTTP 接口与 SSE（meta / analyze / chat / sse / store / helpers / deps）
 │   │   ├── orchestrator.py    建模形态：图编排与专家团调度
 │   │   ├── chat_supervisor.py 对话形态：主管 supervisor 循环
@@ -340,7 +370,7 @@ pnpm dev
 │   │   ├── tools/             原子能力（14 个模块 / 23 个工具）
 │   │   ├── skills/            技能说明书（9 份 *.md）
 │   │   └── agents/            ReAct 执行器与智能体定义
-│   └── data/                  运行时数据（不纳入版本控制）
+│   └── data/                  运行时数据（仅开发模式；桌面端落 %APPDATA%\Weister\data）
 │       ├── profiles.json      模型配置
 │       ├── samples/           演示样例（annual_report.txt + catl_2024_annual.pdf）
 │       ├── checkpoints/       运行检查点
@@ -348,12 +378,12 @@ pnpm dev
 │
 └── frontend/
     ├── package.json
-    ├── .env.example
+    ├── next.config.ts         output: standalone（桌面端打包前置）
     └── src/
         ├── app/               页面与全局样式
-        ├── components/        UI 组件（chat/ · settings/ 子目录）
+        ├── components/        UI 组件（chat/ · settings/ 子目录 · WindowControls）
         ├── hooks/             状态逻辑
-        └── lib/               协议、API、配置
+        └── lib/               协议、API、配置（desktop.ts / apiBase.ts）
 ```
 
 ---
@@ -399,7 +429,7 @@ pnpm dev
 | 文档 | 内容 |
 | --- | --- |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层设计、事件协议、执行器实现、数据流 |
-| [docs/USAGE.md](docs/USAGE.md) | 界面操作、配置管理、常见问题排查 |
+| [docs/USAGE.md](docs/USAGE.md) | 界面操作、配置管理、桌面客户端、常见问题排查 |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 新增工具 / 技能 / 智能体、调试技巧 |
 | [docs/DESIGN.md](docs/DESIGN.md) | 系统设计：分层、数据流、关键设计决策与取舍 |
 | [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) | 第三方依赖清单与自主开发范围声明 |

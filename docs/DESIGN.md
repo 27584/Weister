@@ -1,7 +1,7 @@
 # Weister 系统设计文档
 
 > 金融投研智能体 · 多智能体协作的自动化估值建模系统
-> 文档基于**当前代码实测**编写（backend/app 48 个 Python 文件 + frontend/src 28 个源文件，2026-09-22 复核），非纯文档转述。
+> 文档基于**当前代码实测**编写（backend/app 50 个 Python 文件 + frontend/src 31 个源文件 + electron/ 桌面壳，2026-10-07 复核），非纯文档转述。
 
 ---
 
@@ -25,7 +25,9 @@ Weister 读取上市公司财报（PDF / TXT），自动完成**结构化抽取 
 | 技能数量 | 9 份 Markdown 技能说明书（`app/skills/*.md`） |
 | 事件类型 | 15 种，统一走 SSE |
 | 对外协议 | REST + SSE；另提供 MCP stdio 服务器 |
+| REST 端点 | 27 条（meta 17 · analyze 3 · chat 7） |
 | 持久化 | 检查点（断点续跑）+ 运行日志（审计复现），均为文件 JSON |
+| 桌面形态 | Electron portable 单文件：动态端口拉起后端（嵌入式 Python）与前端（standalone）子进程，数据统一落 `%APPDATA%\Weister\data` |
 
 ---
 
@@ -41,6 +43,7 @@ Weister 读取上市公司财报（PDF / TXT），自动完成**结构化抽取 
 | 模型协议 | OpenAI 兼容 | DeepSeek / 通义千问 / 智谱 GLM / Kimi / OpenAI / Ollama 本地 / 自定义 |
 | 工具互操作 | MCP Python SDK ≥1.0 | stdio 模式对外暴露纯计算工具 |
 | 配置 | pydantic-settings | `.env` 兜底，前端请求头优先 |
+| 桌面端 | Electron 33 · electron-builder 25 | Windows portable 免安装单文件；内置 Python 3.12 嵌入式运行时与 Next.js standalone，动态端口拉起前后端子进程 |
 
 ---
 
@@ -412,6 +415,8 @@ _parse_json_safe(text)→ 剥 ``` 围栏 → json.loads → 失败则 _repair_js
 | 粒度 | 节点级 | 事件级 | — |
 | 位置 | `data/checkpoints/{run_id}.json` | `data/runs/{run_id}/events.jsonl` + `summary.json` | `data/profiles.json` · `data/samples/*.txt` |
 
+上表 `data/` 是相对数据根目录的写法：根目录由 `paths.py` 的 `resolve_data_dir()` 统一解析——`DATA_DIR` 环境变量优先，默认落平台用户数据目录（Windows `%APPDATA%\Weister\data`），桌面端由 Electron 注入同一路径；开发模式即 `backend/data/`。
+
 **检查点写入用原子替换**，避免半写文件：
 
 ```python
@@ -473,6 +478,7 @@ frontend/src/
 │   ├── AgentStage.tsx      # 智能体协作面板（每 Agent 一窗口）
 │   ├── ConversationSidebar.tsx # 会话列表
 │   ├── SettingsModal.tsx   # 模型设置弹窗（多档案 + 探测）
+│   ├── WindowControls.tsx  # 桌面端窗口三按钮（最小化/最大化·还原/关闭，无桥时 return null）
 │   ├── chat/ · settings/   # TokenRing · SearchApiCard 等子组件
 │   └── CapabilitiesPanel.tsx # 技能 / 工具 / 智能体目录
 ├── hooks/
@@ -480,8 +486,12 @@ frontend/src/
 └── lib/
     ├── types.ts            # 与后端 events.py 对齐的类型定义
     ├── api.ts              # SSE 消费 + 凭据头 + REST 封装
+    ├── desktop.ts          # window.WEISTER 桥类型 + useDesktopBridge（服务端快照 null 防 hydration 错位）
+    ├── apiBase.ts          # API 基址唯一来源：WEISTER.API_BASE → NEXT_PUBLIC_API_BASE → 127.0.0.1:8000
     └── llmStore.ts         # 档案本地缓存
 ```
+
+**桌面端桥接**：Electron `preload.cjs` 注入 `window.WEISTER`（动态 API 基址、窗口控制 IPC、最大化状态订阅）。`page.tsx` 的 `<header>` 在桌面端加 `app-drag` 拖动区并嵌入 `<WindowControls />`——页面顶栏即窗口标题栏；浏览器下桥为 `null`，三按钮与拖动区不渲染，观感与 Web 版一致。
 
 **事件分发的双通道**（`page.tsx` 的 `handleEvent`）：
 
@@ -717,21 +727,25 @@ if node in (ckpt.get("completed_nodes") or []) and ckpt.get("document_text"):
 
 8. ~~**聊天形态 + supervisor loop**~~ —— 见 [第 13 节](#13-聊天形态Supervisor-Loop2026-09-12-新增)（取代长期项目 #13「主管真正参与调度」）：删除 6 节点固定 DAG，改为 `coordinator` 真 LLM 决策（每轮输出 `{"action":"reply|delegate","agent":..,"task":..,"content":..}`），specialist 复用 `AgentRunner.run()`。`/api/chat` POST + `/api/chat/{run_id}` GET 已可端到端访问（详见 [USAGE.md § 聊天模式](USAGE.md#聊天模式推荐)）。
 
+**已完成（2026-09-26 ~ 10-07）**
+
+9. ~~**桌面客户端完整落地**~~ —— Electron 壳 + 嵌入式 Python 打包（详见 [ARCHITECTURE.md 桌面端进程拓扑](ARCHITECTURE.md#桌面端进程拓扑) 与 [DEVELOPMENT.md 桌面端构建](DEVELOPMENT.md#桌面端构建)）：PyInstaller 方案弃用，改为 python.org 嵌入式发行版 + `-s` 旗标隔离；`electron/main.cjs` 动态端口（8000/3000 起 +1 最多 20）拉起前后端子进程；`paths.py` 数据目录唯一来源（`%APPDATA%\Weister\data`）；`prepare-frontend.cjs` 解决 standalone 符号链接与 BUILD_ID 同源；portable 免安装单文件输出
+
 **短期（低风险，待办）**
 
-9. **收敛 `ruff` 合规**：`pyproject.toml` 声明了 ruff（`ruff>=0.7.0`，实际装的是 0.16.6），实测 `ruff check app` 有 **5 个既存告警**（全部集中在 `tools/parsing.py` 的 OCR 容错分支），`ruff format` 会重排 **2 个文件**（`chat_supervisor.py` / `tools/ratios.py`）。建议先明确 `[tool.ruff.lint] select` 规则集，再一次性收敛——**不要混在功能改动里做**，否则 diff 会被格式化噪音淹没
-10. **给 `ToolContext.state` 找到真实用途，或删掉它**：`shared` 目前仍被传入但无人写入，是留给「需要跨步共享状态的注入式工具」的挂点。留着的代价是容易被误当成可用容器（本次的 `loaded_skills` 就是踩了这个坑）
+10. **收敛 `ruff` 合规**：`pyproject.toml` 声明了 ruff（`ruff>=0.7.0`，实际装的是 0.16.6），实测 `ruff check app` 有 **5 个既存告警**（全部集中在 `tools/parsing.py` 的 OCR 容错分支），`ruff format` 会重排 **2 个文件**（`chat_supervisor.py` / `tools/ratios.py`）。建议先明确 `[tool.ruff.lint] select` 规则集，再一次性收敛——**不要混在功能改动里做**，否则 diff 会被格式化噪音淹没
+11. **给 `ToolContext.state` 找到真实用途，或删掉它**：`shared` 目前仍被传入但无人写入，是留给「需要跨步共享状态的注入式工具」的挂点。留着的代价是容易被误当成可用容器（本次的 `loaded_skills` 就是踩了这个坑）
 
 **中期**
 
-11. **API Key 加密存储**：`data/profiles.json` 与 localStorage 均明文，建议至少做本地密钥加密或改为仅内存持有
-12. **结构化输出改用原生 JSON Schema**：为支持 `response_format` 的端点启用严格模式，可大幅降低对 `_repair_json` 的依赖
-13. **检查点改用 SQLite**：当前文件方案不支持并发多实例，也缺少索引；SQLite 可零依赖解决
-14. **给 `/api/chat` 加运行中的取消接口**：目前中断依赖前端 `AbortSignal`，后端无法主动终止已启动的 supervisor loop
+12. **API Key 加密存储**：`data/profiles.json` 与 localStorage 均明文，建议至少做本地密钥加密或改为仅内存持有
+13. **结构化输出改用原生 JSON Schema**：为支持 `response_format` 的端点启用严格模式，可大幅降低对 `_repair_json` 的依赖
+14. **检查点改用 SQLite**：当前文件方案不支持并发多实例，也缺少索引；SQLite 可零依赖解决
+15. **给 `/api/chat` 加运行中的取消接口**：目前中断依赖前端 `AbortSignal`，后端无法主动终止已启动的 supervisor loop
 
 **长期**
 
-15. **补充评测基线**：对固定样例跑 N 次，记录字段抽取准确率、DCF 权益价值的中位数与极差、事件流完整率、重试触发次数，让"稳定性设计"从声称变成可量化验收的证据
+16. **补充评测基线**：对固定样例跑 N 次，记录字段抽取准确率、DCF 权益价值的中位数与极差、事件流完整率、重试触发次数，让"稳定性设计"从声称变成可量化验收的证据
 
 ---
 
@@ -786,19 +800,38 @@ if node in (ckpt.get("completed_nodes") or []) and ckpt.get("document_text"):
 Weister/
 ├── README.md                 项目说明
 ├── dev.ps1                   一键启动（清端口 → 查依赖 → 备 .env → 起后端 → 健康检查 → 起前端）
+├── check.ps1                 质量门禁（ruff + pytest + tsc）
 ├── docs/
 │   ├── ARCHITECTURE.md       架构详解（与代码同步）
 │   ├── DESIGN.md             ← 本文档
 │   ├── architecture.html     ← 系统架构图
-│   ├── USAGE.md              使用指南与故障排查
-│   ├── DEVELOPMENT.md        开发与扩展指南
+│   ├── USAGE.md              使用指南与故障排查（含桌面客户端章）
+│   ├── DEVELOPMENT.md        开发与扩展指南（含桌面端构建章）
 │   └── THIRD_PARTY.md        第三方依赖清单（名称/版本/来源/许可证/使用范围）
+│
+├── scripts/
+│   ├── build.ps1             桌面客户端一键构建（prepare-python → standalone → electron-builder）
+│   └── prepare-python.ps1    准备 backend/python/ 嵌入式 Python（._pth 重写 + -s 隔离 + 依赖校验）
+│
+├── electron/                 桌面客户端壳（Electron 33，portable 打包）
+│   ├── main.cjs              主进程：动态端口（8000/3000 起 +1 最多 20）· 拉起前后端子进程 ·
+│   │                         加载窗口（进度/失败回显）· frame:false · cleanup
+│   ├── preload.cjs           只注入 window.WEISTER 桥（API_BASE/IS_DESKTOP/VERSION/窗口控制）
+│   ├── loading.html          启动加载页（独立无边框小窗，自带标题栏）
+│   ├── build/icon.ico        应用图标（深墨底白 W）
+│   ├── scripts/prepare-frontend.cjs  prebuild 钩子：static/public 同步进 standalone ·
+│   │                         pnpm 符号链接物化 · BUILD_ID 校验 · 铺到 build/frontend
+│   └── package.json          electron-builder 配置（appId/productName/portable/extraResources）
 │
 ├── backend/
 │   ├── pyproject.toml        依赖与 ruff 配置（line-length=100, py312）
-│   ├── .env.example
+│   ├── .env.example          含 DATA_DIR（留空即 %APPDATA%\Weister\data）
+│   ├── python/               嵌入式 Python 运行时（build.ps1 生成，不纳入版本控制）
 │   ├── app/
 │   │   ├── main.py           入口（仅 `from .api import app`）
+│   │   ├── __main__.py       `python -m app` 入口（读 HOST/PORT 环境变量，桌面端启动用）
+│   │   ├── paths.py          落盘路径唯一来源（DATA_DIR 优先 → %APPDATA%\Weister\data；
+│   │   │                     env_file() 绝对路径，防两种启动方式读到不同 .env）
 │   │   ├── api/              HTTP 接口 · SSE · 凭据头 · CORS（meta/analyze/chat/sse/store/helpers/deps）
 │   │   ├── orchestrator.py   LangGraph 图 · 6 节点 · 专家团并行调度
 │   │   ├── state.py          InvestState（TypedDict, total=False）
@@ -815,7 +848,7 @@ Weister/
 │   │   ├── checkpoint.py     运行检查点（原子写）
 │   │   ├── runlog.py         运行日志（events.jsonl + summary.json + 脱敏）
 │   │   ├── storage.py        data 目录读写（profiles / samples）
-│   │   ├── config.py         pydantic-settings 环境配置
+│   │   ├── config.py         pydantic-settings 环境配置（data_dir 走 paths.py）
 │   │   ├── mcp_server.py     MCP stdio 服务器（协议适配）
 │   │   ├── core/registry.py  Tool / Skill / AgentSpec 注册表
 │   │   ├── tools/
@@ -838,7 +871,7 @@ Weister/
 │   │       ├── base.py       AgentRunner · ToolContext · build_system_prompt
 │   │       ├── coordinator.py    投研主管
 │   │       └── specialists.py    6 位专家 + 报告撰写人
-│   └── data/                 运行时数据（不纳入版本控制）
+│   └── data/                 运行时数据（开发模式；桌面端落 %APPDATA%\Weister\data）
 │       ├── profiles.json     模型配置（API Key 明文）
 │       ├── samples/          演示样例
 │       ├── checkpoints/      运行检查点
@@ -846,11 +879,14 @@ Weister/
 │
 └── frontend/
     ├── package.json
+    ├── next.config.ts        output: "standalone"（桌面端打包前置）
     └── src/
-        ├── app/              page.tsx · layout.tsx · globals.css
-        ├── components/       ChatPanel · PipelineProgress · PipelineResult · AgentStage · ConversationSidebar · SettingsModal
+        ├── app/              page.tsx（桌面端顶栏加 app-drag + WindowControls）· layout.tsx · globals.css
+        ├── components/       ChatPanel · PipelineProgress · PipelineResult · AgentStage ·
+        │                     ConversationSidebar · SettingsModal · WindowControls（窗口三按钮）
         ├── hooks/            useAgentTimeline.ts
-        └── lib/              types.ts · api.ts · llmStore.ts
+        └── lib/              types.ts · api.ts · llmStore.ts · desktop.ts（WEISTER 桥）·
+                              apiBase.ts（API 基址解析：桥 → env → 127.0.0.1:8000）
 ```
 
 ---
@@ -886,7 +922,7 @@ Weister/
 | GET | `/api/logs/{id}` | 单次运行的完整事件流 |
 | DELETE | `/api/logs/{id}` | 删除运行日志 |
 
-> 全部共 23 条路径；交互式文档见 http://127.0.0.1:8000/docs
+> 全部共 27 条路径（meta 17 · analyze 3 · chat 7）；交互式文档见 http://127.0.0.1:8000/docs
 
 ## 附录 B：智能体与工具权限矩阵
 

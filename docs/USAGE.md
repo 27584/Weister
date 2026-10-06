@@ -7,6 +7,7 @@
 ## 目录
 
 - [首次使用](#首次使用)
+- [桌面客户端](#桌面客户端)
 - [配置模型](#配置模型)
 - [聊天模式（推荐）](#聊天模式推荐)
 - [运行分析（v1 DAG，留作对比）](#运行分析v1-dag留作对比)
@@ -48,6 +49,49 @@
 ### 2. 打开界面
 
 浏览器访问 http://localhost:3000
+
+---
+
+## 桌面客户端
+
+不想装 Node / uv 环境的话，可以直接用免安装的桌面版：双击 `electron/release/Weister-*.exe`（构建方法见 [DEVELOPMENT.md](DEVELOPMENT.md) 的「桌面端构建」），或由 `scripts\build.ps1` 一键产出。
+
+### 它是怎么启动的
+
+双击 exe 后 Electron 会按顺序自动完成（进度显示在启动加载窗口上）：
+
+1. **分配端口**：后端默认 8000、前端默认 3000，被占用时自动 +1 递增（最多试 20 个）——所以不用手动关掉占端口的程序
+2. **启动后端**：使用包内自带的 Python 嵌入式运行时（`resources/backend/python/`），无需系统安装 Python
+3. **启动界面**：用 Electron 内置 Node 跑 Next.js standalone 服务，无需系统安装 Node
+4. **就绪检查**：后端 `/api/health` 与前端首页各轮询 60 秒，通过后打开主窗口
+
+启动失败时，加载窗口会显示具体原因（含后端进程输出的末几行），而不是一句笼统的超时提示。
+
+### 数据保存在哪里
+
+桌面版**不写**安装目录，所有数据统一放在：
+
+```
+%APPDATA%\Weister\data\
+├── profiles.json    模型配置（API Key 等）
+├── samples\         演示样例
+├── checkpoints\     建模运行检查点
+└── runs\            会话历史与运行日志
+```
+
+- 卸载或删除 exe 不影响这份数据；「完全重置」见[常见问题](#如何完全重置)
+- 高级：设置 `DATA_DIR` 环境变量可以把数据指到任意目录（相对路径按 backend 目录解析）
+
+### 与浏览器版的差异
+
+- 顶栏同时是**窗口标题栏**：按住顶栏空白处可拖动窗口，右端有最小化 / 最大化·还原 / 关闭三按钮
+- 后端地址由桌面壳自动注入（`window.WEISTER.API_BASE`），界面上不需要也不能改端口
+- 其余功能（配置模型、聊天、建模、断点续跑）与浏览器版完全一致
+
+### 常见桌面端问题
+
+- **双击后卡在加载窗口**：先看加载窗口上的错误详情。若提示 backend not responding，多半是杀毒软件拦截了包内 python.exe——把 `resources\backend\python\` 加入白名单后重试
+- **想看后端日志**：数据目录在 `%APPDATA%\Weister\data\`，运行日志在 `runs\` 子目录，界面「协作」面板也能看实时事件流
 
 ---
 
@@ -114,7 +158,7 @@
 
 ### 配置文件位置
 
-界面保存的配置写入 `backend/data/profiles.json`：
+界面保存的配置写入 `backend/data/profiles.json`（桌面版在 `%APPDATA%\Weister\data\profiles.json`）：
 
 ```json
 {
@@ -311,7 +355,7 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 每条 `run_id` 的对话历史写到：
 
 ```
-backend/data/runs/{run_id}/messages.jsonl
+backend/data/runs/{run_id}/messages.jsonl   （桌面版：%APPDATA%\Weister\data\runs\）
 ```
 
 JSONL 格式（每行一条 message），便于追加写入与续读。视觉消息（`image_url`）也保留，刷新后可重建多模态上下文。
@@ -510,7 +554,7 @@ uv run python -m app.mcp_server
 
 ## 运行日志
 
-每次运行都会在 `backend/data/runs/{run_id}/` 下生成日志。
+每次运行都会在 `backend/data/runs/{run_id}/` 下生成日志（桌面版在 `%APPDATA%\Weister\data\runs\`）。
 
 ### 查看日志列表
 
@@ -599,6 +643,8 @@ ERROR: [WinError 10013] 以一种访问权限不允许的方式做了一个访�
 .\dev.ps1
 ```
 
+桌面客户端不受此问题影响——它从 8000/3000 起自动尝试 +1 递增的空闲端口（最多 20 个）。
+
 ### 点击运行后立即报「未提供 API Key」
 
 在「模型设置」中填入 Key，或检查 `backend/data/profiles.json` 的 `activeId` 指向的档案是否有 Key。
@@ -680,6 +726,8 @@ Remove-Item backend\data\profiles.json
 # 重新启动
 .\dev.ps1
 ```
+
+桌面版把上面 `backend\data\` 换成 `%APPDATA%\Weister\data\` 即可（先退出应用再删）。
 
 ### 如何添加自己的演示样例
 

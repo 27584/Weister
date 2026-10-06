@@ -54,9 +54,9 @@ PyMuPDF 采用 **AGPL-3.0** 与商业许可双授权模式。本项目为非商�
 
 ---
 
-## 二、前端依赖
+## 二、前端与桌面端依赖
 
-### 运行时依赖
+### 前端运行时依赖
 
 | 名称 | 版本 | 来源 | 许可证 | 使用范围 |
 | --- | --- | --- | --- | --- |
@@ -85,6 +85,15 @@ PyMuPDF 采用 **AGPL-3.0** 与商业许可双授权模式。本项目为非商�
 | @types/node | ^20 | https://github.com/DefinitelyTyped/DefinitelyTyped | MIT | Node.js 类型定义 |
 | @types/react | ^19 | https://github.com/DefinitelyTyped/DefinitelyTyped | MIT | React 类型定义 |
 | @types/react-dom | ^19 | https://github.com/DefinitelyTyped/DefinitelyTyped | MIT | React DOM 类型定义 |
+
+### 桌面端依赖（electron/ 子包，devDependencies）
+
+| 名称 | 版本 | 来源 | 许可证 | 使用范围 |
+| --- | --- | --- | --- | --- |
+| Electron | 33.4.11 | https://github.com/electron/electron | MIT | 桌面壳：主进程拉起前后端子进程、加载窗口、窗口控制 IPC |
+| electron-builder | 25.0.0 | https://github.com/electron-userland/electron-builder | MIT | 打包为 Windows portable 免安装单文件（`electron/release/`） |
+
+桌面端打包还会附带 **Python 嵌入式发行版**（python.org 官方 `python-3.12.9-embed-amd64.zip`，PSF License Agreement）作为后端运行时，由 `scripts/prepare-python.ps1` 下载并安装上述后端依赖——分发包内含的第三方 Python 库以 `uv.lock` / `pyproject.toml` 版本为准，许可证同「后端依赖」表。
 
 ---
 
@@ -169,6 +178,8 @@ PyMuPDF 采用 **AGPL-3.0** 与商业许可双授权模式。本项目为非商�
 | 检查点机制 | 断点续跑的状态保存与恢复 |
 | 前端界面 | 智能体工作台、结果面板、设置面板的全部组件 |
 | MCP 集成 | 把现有工具暴露为 MCP 工具的适配层 |
+| 桌面端壳层 | `electron/main.cjs` 的启动序列 / 动态端口 / 加载窗口 / 失败回显，`preload.cjs` 的桥协议，`scripts/prepare-frontend.cjs` 的 standalone 物化，`scripts/build.ps1` / `prepare-python.ps1` 构建链 |
+| 路径解析 | `backend/app/paths.py` 的跨平台数据目录定位 |
 
 **第三方库的使用方式**均为「调用其公开 API」，未修改其源码，未复制其内部实现。
 
@@ -203,4 +214,4 @@ cd frontend && pnpm install --frozen-lockfile
 
 ---
 
-*最后更新：2026-09-22（复核：工具 23 · 技能 9 · 智能体 8 · 提供商 7）*
+*最后更新：2026-10-07（复核：工具 23 · 技能 9 · 智能体 8 · 提供商 7；补桌面端 Electron / electron-builder 依赖与嵌入式 Python 说明）*

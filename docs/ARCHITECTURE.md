@@ -7,6 +7,7 @@
 ## 目录
 
 - [整体分层](#整体分层)
+- [桌面端进程拓扑](#桌面端进程拓扑)
 - [注册表](#注册表)
 - [ReAct 执行器](#react-执行器)
 - [专家团并行](#专家团并行)
@@ -37,6 +38,40 @@
 ```
 
 **依赖方向**：上层依赖下层，下层不感知上层。`tools/` 中的函数是纯能力，不知道谁在调用它们。
+
+---
+
+## 桌面端进程拓扑
+
+桌面形态下，Electron 主进程（`electron/main.cjs`）是两个子服务的父进程与编排者：
+
+```
+┌────────────────────────── Weister.exe (Electron) ──────────────────────────┐
+│                                                                            │
+│  main.cjs   whenReady 启动序列：                                            │
+│    1. findFreePort(8000) / findFreePort(3000)  被占用则 +1，最多 20 个       │
+│    2. startBackend    打包版 resources/backend/python/python.exe -s -m app  │
+│    3. waitForService  轮询 /api/health，60 次 × 1s                          │
+│    4. startFrontend   electron.exe + ELECTRON_RUN_AS_NODE=1 跑 standalone   │
+│    5. waitForHttp     轮询 /，60 次 × 500ms                                 │
+│    6. createWindow    frame:false，页面顶栏即标题栏                          │
+│                                                                            │
+│  ├─ backend 子进程   env: PORT / HOST=127.0.0.1 / DATA_DIR / CORS_ORIGINS   │
+│  ├─ frontend 子进程  （ELECTRON_RUN_AS_NODE，无需系统 Node）                 │
+│  └─ loading window   启动加载页，reportProgress / reportError（尾 6 行回显）  │
+└────────────────────────────────────────────────────────────────────────────┘
+         │ preload 注入 window.WEISTER 桥
+         ▼
+   渲染进程（frontend standalone 页面）──SSE──▶ 127.0.0.1:{动态后端端口}
+```
+
+关键机制：
+
+- **动态端口**：后端 8000 / 前端 3000 冲突时自动递增；`CORS_ORIGINS`、`WEISTER_API_BASE`、`preload.cjs` 的 `API_BASE` 全部按实际端口注入，前端经 `lib/apiBase.ts` 的 `resolveApiBase()` 优先读桥上的基址
+- **嵌入式 Python 隔离**：打包版后端用 Python 官方嵌入式发行版（`backend/python/`，由 `scripts/prepare-python.ps1` 生成）。嵌入式包的 `._pth` 隔离模式忽略 `PYTHON*` 环境变量，故必须以命令行 `-s` 旗标启动（`sys.flags.no_user_site=1`），防止构建机用户级 site-packages 泄漏进分发包
+- **数据目录**：`backend/app/paths.py` 是落盘路径唯一来源——`DATA_DIR` 环境变量优先，默认按平台落用户数据目录（Windows 为 `%APPDATA%\Weister\data`）。Electron 同步 `app.setPath("userData", .../Weister)`，与后端 `APP_NAME="Weister"` 对齐，前后端共用同一份数据。刻意不回退 `./data`：打包后工作目录常为只读安装目录
+- **进程清理**：`cleanup()` 挂在 `window-all-closed` / `before-quit` / `SIGINT` / `SIGTERM`，退出时杀掉两个子进程
+- **失败可见性**：子进程输出进环形缓冲（40 行），启动失败时在加载窗口回显错误消息与末 6 行，避免只见一句 backend not responding
 
 ---
 
@@ -301,6 +336,8 @@ class InvestState(TypedDict, total=False):
 ```
 
 恢复时节点先检查是否已完成，是则直接返回缓存值，跳过 LLM 调用。
+
+> 落盘位置由 `backend/app/paths.py` 统一解析：开发模式在 `backend/data/`，桌面客户端在 `%APPDATA%\Weister\data\`（`DATA_DIR` 环境变量可覆盖）。下文 `data/checkpoints/`、`data/runs/` 均指该数据目录下的相对位置。
 
 ---
 

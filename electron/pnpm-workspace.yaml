@@ -4,3 +4,8 @@
 # 只放行 electron 这一个包，其余依赖的构建脚本继续被忽略。
 allowBuilds:
   electron: true
+# hoisted 布局：消除 pnpm 的 node_modules/electron Junction。
+# Junction 指向 .pnpm/electron@33.4.11/node_modules/electron，
+# 其 index.js 返回 electron.exe 路径字符串而非 API 对象，
+# 导致 require("electron") 解构出 undefined，Electron 劫持失效。
+nodeLinker: hoisted

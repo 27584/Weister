@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — 2026-10-07
+
+### 桌面客户端：Electron 壳与免安装打包（完整落地）
+- **打包方案切换**：后端从 PyInstaller 改为 **Python 嵌入式发行版**（`scripts/prepare-python.ps1` 下载 python-3.12.9-embed-amd64 到 `backend/python/`，重写 `python312._pth` 加入 `..` 使 `python -m app` 可解析）。嵌入式包的 `._pth` 隔离模式会忽略 `PYTHON*` 环境变量，故后端进程一律以 `-s` 命令行旗标启动（`sys.flags.no_user_site=1`），屏蔽构建机用户级 site-packages——此前 pip 假安装导致分发机 `ModuleNotFoundError: uvicorn`、后端秒退、客户端 60 秒超时报 backend not responding
+- **Electron 主进程**（`electron/main.cjs`）：拉起后端（`-s -m app`）与前端（`ELECTRON_RUN_AS_NODE=1` 跑 Next.js standalone `server.js`，不依赖系统 Node）；**动态端口**——后端 8000 / 前端 3000 被占用时 +1 递增最多试 20 个，`CORS_ORIGINS` / `DATA_DIR` / `WEISTER_API_BASE` 按实际端口注入，消除固定端口撞车导致的 Failed to fetch
+- **启动加载窗口**：460×340 无边框黑白加载页（`loading.html`），进度分 8→20→35→65→80→100 六段（分配端口 / 启动后端 / 等待后端就绪 / 启动界面 / 等待界面就绪 / 加载应用）；后端启动失败时回显子进程输出末 6 行（环形缓冲 40 行），不再只给一句 backend not responding
+- **白屏修复**：`electron/scripts/prepare-frontend.cjs` 打包前置——把 `.next/static` 与 `public` 同步进 standalone（与 BUILD_ID 同源，防 chunk 404）、探测并物化 pnpm 符号链接（junction 指向构建机绝对路径，离机即断）、把 standalone 铺到 `electron/build/frontend`（electron-builder 的 extraResources 会 glob 跳过 `.` 开头目录，`.next` 必须换无隐藏段的路径）
+- **数据目录**：新增 `backend/app/paths.py` 作为落盘路径唯一来源——`DATA_DIR` 环境变量优先，默认 `%APPDATA%\Weister\data`（Windows/macOS/Linux 各自解析），刻意不回退 `./data`；Electron 与后端共用 `app.setPath("userData", .../Weister)` 同一路径。`.env` 读取改为绝对路径，`python -m app` 与 `uvicorn --reload` 不会读到不同配置
+- **窗口与桥**：主窗口 1400×900（最小 1024×700）`frame:false`，页面顶栏即标题栏（拖动区 + 最小化/最大化·还原/关闭三按钮，浏览器访问自动隐藏）；`preload.cjs` 只注入 `window.WEISTER` 桥（动态 API 基址 + 窗口控制 + 最大化状态订阅）
+- **应用图标**：深墨底白 W 图标（`electron/build/icon.ico`），portable 输出自带
+- **构建脚本**：新增 `scripts/build.ps1` 一键三步（prepare-python → 前端 standalone → electron-builder portable，`electron/release/*.exe`）；支持 `-SkipBackend` / `-SkipFrontend` / `-SkipElectron`
+- 其他修复：React BUILD_ID 不匹配致前端无法 hydrate、标题栏注入滚动条、端口未传递卡加载页
+
+### 文档
+- 全套文档补齐桌面端章节：README（目录结构 / 桌面构建 / 技术栈）、USAGE（桌面客户端使用与数据目录）、DEVELOPMENT（桌面端开发与构建）、ARCHITECTURE（进程拓扑与路径解析）、DESIGN（目录结构 / 附录 A 端点 27 条）、THIRD_PARTY（Electron / electron-builder 依赖行）
+
 ## Unreleased — 2026-09-22
 
 ### 文档与源码逐条核对（以源码为准）

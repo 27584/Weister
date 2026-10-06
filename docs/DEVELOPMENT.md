@@ -16,6 +16,7 @@
 - [新增日志字段](#新增日志字段)
 - [前端扩展](#前端扩展)
 - [调试技巧](#调试技巧)
+- [桌面端构建](#桌面端构建)
 - [测试与验证](#测试与验证)
 
 ---
@@ -725,6 +726,77 @@ pnpm build 2>&1 | Select-Object -Last 30
 ```
 
 TypeScript 错误会在这里暴露。
+
+---
+
+## 桌面端构建
+
+### 目录与角色
+
+```
+electron/
+├── main.cjs                        主进程：启动序列 / 动态端口 / 加载窗口 / 进程清理
+├── preload.cjs                     注入 window.WEISTER 桥（API 基址 + 窗口控制）
+├── loading.html                    启动加载页（独立无边框小窗）
+├── build/icon.ico · icon.png       应用图标（深墨底白 W）
+├── scripts/prepare-frontend.cjs    打包前置（见下）
+└── package.json                    electron-builder 配置，portable 目标 → release/
+```
+
+### 桌面端开发调试
+
+```bash
+# 前端先构建 standalone（桌面壳跑的是 standalone server.js，不是 next dev）
+cd frontend && pnpm build
+
+# 从 electron 目录启动壳（开发模式会用 backend/.venv 的 Python + .next/standalone）
+cd electron
+pnpm install
+pnpm dev
+```
+
+开发模式下 Electron 直接复用仓库内 `backend/.venv` 与 `frontend/.next/standalone`，改前端代码后需重新 `pnpm build` 再重启壳。
+
+### 打包前置：prepare-frontend.cjs
+
+electron-builder 打包前由 `prebuild` 钩子自动执行，做四件事：
+
+1. 把 `frontend/.next/static` 与 `frontend/public` 同步进 standalone（与 BUILD_ID 同源，缺了会 chunk 404 白屏）
+2. 探测 standalone/node_modules 里的 pnpm 符号链接并解引用物化（junction 指向构建机绝对路径，换机器即断），自检 next / react / react-dom 为真实目录
+3. 校验 `standalone/.next/BUILD_ID` 存在
+4. 把 standalone 铺到 `electron/build/frontend`——electron-builder 的 extraResources 会按 glob 展开跳过 `.` 开头目录，`.next` 必须换成无隐藏段的路径
+
+### 一键构建
+
+```powershell
+.\scripts\build.ps1                 # 三步全跑
+.\scripts\build.ps1 -SkipBackend    # backend/python 已就绪时
+```
+
+三步依次是：
+
+| 步骤 | 脚本 | 产物 |
+| --- | --- | --- |
+| 1. 嵌入式 Python | `scripts/prepare-python.ps1` | `backend/python/`（Python 3.12 嵌入式发行版 + 12 个运行时依赖） |
+| 2. 前端 standalone | frontend `pnpm build` | `frontend/.next/standalone/` |
+| 3. Electron 打包 | electron `pnpm build`（electron-builder） | `electron/release/*.exe`（portable 免安装单文件） |
+
+### 嵌入式 Python 的隔离约束（重要）
+
+`scripts/prepare-python.ps1` 头部注释记录了完整踩坑链路，改打包逻辑前先读它。要点：
+
+- 嵌入式包的 `._pth` 使 Python 进入 isolated 模式，**忽略 `PYTHON*` 环境变量**，`PYTHONNOUSERSITE` 无效
+- 唯一可靠的隔离开关是命令行 `-s` 旗标——`electron/main.cjs` 的 `BACKEND_ARGS = ["-s", "-m", "app"]` 不可改成其他启动方式
+- 验证脚本会检查每个依赖模块的 `__file__` 是否 resolve 到 `backend/python` 内部，防止「构建机 pip 假装装好、分发机 ModuleNotFoundError」的假通过
+- 后端入口必须是 `python -m app`（`app/__main__.py` 读 `HOST`/`PORT` 环境变量；直接跑 uvicorn 不读 `PORT`，会静默回退 8000 与动态端口分配不一致）
+
+### 数据目录约定
+
+桌面版数据统一落 `%APPDATA%\Weister\data`：
+
+- `backend/app/paths.py` 的 `APP_NAME = "Weister"` 必须与 Electron `userData` 末级目录同名，否则前后端各写一份数据
+- `.env` 读取用绝对路径（`paths.env_file()`），`python -m app` 与 `uvicorn --reload` 读到同一份
+- 改任何落盘逻辑时从 `paths.py` 取路径，不要用相对 `cwd` 的写法——打包后工作目录是安装目录
 
 ---
 
