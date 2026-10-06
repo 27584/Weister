@@ -37,7 +37,7 @@ const BACKEND_PYTHON = isDev
   : join(ROOT, "backend", "python", "python.exe");
 
 const BACKEND_CWD = join(ROOT, "backend");
-const BACKEND_ARGS = ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"];
+const BACKEND_ARGS = ["-m", "uvicorn", "app.main:app"];
 
 // 前端 standalone server 路径
 const FRONTEND_SERVER = isDev
@@ -46,12 +46,42 @@ const FRONTEND_SERVER = isDev
 
 // 用户数据目录
 const USER_DATA_DIR = join(app.getPath("userData"), "data");
-const BACKEND_PORT = 8000;
-const FRONTEND_PORT = 3000;
+
+// 运行时选定的端口（启动时动态分配，避免占用冲突）
+let BACKEND_PORT = 8000;
+let FRONTEND_PORT = 3000;
 
 let backendProcess = null;
 let frontendProcess = null;
 let mainWindow = null;
+
+/**
+ * 查找可用端口：从 preferred 开始，被占用则 +1 递增（最多试 20 个）
+ */
+function findFreePort(preferred) {
+  const net = require("node:net");
+  return new Promise((resolve, reject) => {
+    let port = preferred;
+    const tries = 20;
+
+    const attempt = (p, left) => {
+      const server = net.createServer();
+      server.once("error", (err) => {
+        if (err.code === "EADDRINUSE" && left > 0) {
+          attempt(p + 1, left - 1);
+        } else {
+          reject(err);
+        }
+      });
+      server.once("listening", () => {
+        server.close(() => resolve(p));
+      });
+      server.listen(p, "127.0.0.1");
+    };
+
+    attempt(port, tries);
+  });
+}
 
 /**
  * 确保数据目录存在
@@ -83,6 +113,9 @@ function startBackend() {
   const env = {
     ...process.env,
     DATA_DIR: USER_DATA_DIR,
+    PORT: String(BACKEND_PORT),
+    HOST: "127.0.0.1",
+    CORS_ORIGINS: `http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT}`,
   };
 
   console.log(`[main] Starting backend: ${BACKEND_PYTHON} ${BACKEND_ARGS.join(" ")}`);
@@ -245,9 +278,13 @@ app.whenReady().then(async () => {
   console.log(`[main] userData: ${app.getPath("userData")}`);
   console.log(`[main] isDev: ${isDev}`);
 
-  // 清理可能残留的端口占用
-  await killPort(BACKEND_PORT);
-  await killPort(FRONTEND_PORT);
+  // 动态分配空闲端口，避免与其他应用冲突（不再强杀端口上的进程）
+  BACKEND_PORT = await findFreePort(8000);
+  FRONTEND_PORT = await findFreePort(3000);
+  console.log(`[main] Selected ports: backend=${BACKEND_PORT} frontend=${FRONTEND_PORT}`);
+
+  // 通过环境变量把实际端口传给 preload（渲染进程读取）
+  process.env.WEISTER_API_BASE = `http://127.0.0.1:${BACKEND_PORT}`;
 
   try {
     // 1. 启动后端

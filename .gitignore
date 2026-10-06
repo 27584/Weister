@@ -55,5 +55,8 @@ coverage/
 # 存放 AI 助手的内部工作文档：审计发现、纠正性备忘、临时分析、会话记录。
 # 面向用户/团队的项目文档请放 docs/。
 .agent/
+.rivet/
+.rivet.md
+.rivet-config.json
 
 backend/data/benchmarks/
