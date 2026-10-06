@@ -18,9 +18,9 @@ import json
 import time
 from typing import Any
 
-from .storage import DATA_DIR
+from .config import settings
 
-RUNS_DIR = DATA_DIR / "runs"
+RUNS_DIR = settings.runs_dir_path
 
 SENSITIVE_KEYS = {"api_key", "apikey", "authorization", "token", "secret"}
 

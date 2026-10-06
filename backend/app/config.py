@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     @property
     def runs_dir_path(self) -> Path:
-        return Path(self.runs_dir)
+        return Path(self.runs_dir).resolve()
 
 
 settings = Settings()

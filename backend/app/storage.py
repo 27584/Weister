@@ -13,7 +13,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+from .config import settings
+
+DATA_DIR = Path(settings.data_dir).resolve()
 PROFILES_FILE = DATA_DIR / "profiles.json"
 SAMPLES_DIR = DATA_DIR / "samples"
 CHECKPOINT_DIR = DATA_DIR / "checkpoints"
