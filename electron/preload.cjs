@@ -20,7 +20,10 @@ contextBridge.exposeInMainWorld("WEISTER", {
 });
 
 // ---- 自定义标题栏 ----
-
+//
+// 关键：不能给 body 加 padding（会把页面根的 h-screen/100vh 撑出滚动条）。
+// 改为给应用根节点设 box-sizing: border-box + height: 100vh + padding-top，
+// 这样标题栏高度被算进 100vh 内，总高恰好等于视口，不产生滚动条。
 const TITLEBAR_CSS = `
   #weister-titlebar {
     position: fixed; top: 0; left: 0; right: 0; height: 34px;
@@ -41,8 +44,32 @@ const TITLEBAR_CSS = `
   #weister-titlebar .wt-btn:hover { background: #f5f6f8; }
   #weister-titlebar .wt-btn.wt-close:hover { background: #e81123; color: #ffffff; }
   #weister-titlebar .wt-btn svg { width: 11px; height: 11px; }
-  body { padding-top: 34px !important; box-sizing: border-box; }
+
+  /* 清零默认外边距：body 默认 8px margin 会把 100vh 内容推出视口产生滚动条 */
+  html, body { margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
 `;
+
+/**
+ * 给应用根节点补偿标题栏高度。
+ *
+ * 不能给 body 加 padding（页面根用 h-screen/100vh，会被撑出滚动条）。
+ * 改为直接给根节点设 box-sizing + height:100vh + padding-top:34px，
+ * 标题栏高度算进 100vh 内，总高恰好等于视口。
+ */
+function applyRootOffset() {
+  const bar = document.getElementById("weister-titlebar");
+  const roots = Array.from(document.body.children).filter((el) => el !== bar);
+  for (const el of roots) {
+    if (el.tagName === "SCRIPT" || el.tagName === "STYLE") continue;
+    // 跳过空的 portal/占位容器（无子节点、无文本），它们不需要补偿
+    if (!el.children.length && !(el.textContent || "").trim()) continue;
+    el.style.boxSizing = "border-box";
+    el.style.height = "100vh";
+    el.style.paddingTop = "34px";
+    el.style.margin = "0";
+    el.style.overflow = "hidden";
+  }
+}
 
 function injectTitlebar() {
   // loading.html 自带标题栏，跳过注入
@@ -69,6 +96,11 @@ function injectTitlebar() {
     </div>
   `;
   document.body.appendChild(bar);
+  applyRootOffset();
+
+  // React 可能随后重挂根节点，观察 body 子节点变化重新补偿
+  const mo = new MutationObserver(() => applyRootOffset());
+  mo.observe(document.body, { childList: true });
 
   document.getElementById("wt-min").addEventListener("click", () => ipcRenderer.send("wt:minimize"));
   document.getElementById("wt-max").addEventListener("click", () => ipcRenderer.send("wt:maximize"));
